@@ -50,8 +50,21 @@ local DATA = {
         ['isPAUSED'] = ac.currentlyPlaying().isPlaying,
         ['SPACES'] = table.concat(SPACETABLE),
         ['FUCK'] = false
+    },
+    ['CHAT'] = {
+        ['SIZE'] = vec2(210, 240),
+        ['FLAGS'] = bit.bor(ui.WindowFlags.NoDecoration,ui.WindowFlags.NoBackground, ui.WindowFlags.NoNavFocus)
     }
 }
+
+local chatCount = 0
+local CHAT = {
+}
+
+ac.onChatMessage(function (message, senderCarIndex, senderSessionID)
+    chatCount = chatCount +1
+    CHAT[chatCount] = {message, ac.getDriverName(senderCarIndex)}
+end)
 
 --update spacing
 function UPDATESPACING()
@@ -158,6 +171,17 @@ end
     ui.setCursor(vec2(35, 69))
     ui.dwriteText(DATA.TIME.DISPLAY, 16, 0)
     ui.popDWriteFont()
+
+--draw the chat text
+    ui.setCursor(vec2(35, 95))    
+    ui.childWindow("Chatbox", DATA.CHAT.SIZE, DATA.CHAT.FLAGS, function ()
+        for i = 1, chatCount do
+            ui.pushDWriteFont(DATA.SRC.FONT)
+            ui.dwriteTextWrapped(CHAT[i][2]..":  "..CHAT[i][1], 16,0)
+            ui.popDWriteFont()
+            ui.setScrollHereY(1)
+        end
+    end)
 
 --draw phone image
     ui.drawImage(DATA.SRC.PHONE, vec2(DATA.PADDING.x, DATA.SIZE.y - DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE), vec2(DATA.SIZE.x + DATA.PADDING.x, DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE), true)
