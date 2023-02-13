@@ -211,7 +211,16 @@ local VECX = vec2(DATA.PADDING.x, DATA.SIZE.y - DATA.SIZE.y - DATA.PADDING.y):sc
 local VECY = vec2(DATA.SIZE.x + DATA.PADDING.x, DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE)
 
 --main app window
+local chatFadeTimer = 0
+local chatInputActive = false
 function script.windowMain(dt)
+
+    local phoneHovered = ui.rectHovered(0, DATA.SIZE)
+    if phoneHovered then
+        chatFadeTimer = 1
+    elseif chatFadeTimer > 0 and not testing123 then
+        chatFadeTimer = chatFadeTimer - dt
+    end
 
     --draw display image
     ui.drawImage(DATA.SRC.DISPLAY, VECX, VECY, true)
@@ -263,10 +272,15 @@ function script.windowMain(dt)
     --       clear input but keep text input going like regular chat app
     ui.setCursor(vec2(18, 306))
     ui.childWindow('Chatinput', vec2(298, 32), DATA.CHAT.FLAGS, function ()
-       local CHATINPUTSTRING, CHATINPUTCHANGE, CHATINPUTENTER = ui.inputText('', CHATINPUTSTRING)
-        if CHATINPUTENTER then 
-        ac.sendChatMessage(CHATINPUTSTRING)
-        CHATINPUTSTRING = ''
+        if phoneHovered or chatInputActive then
+            local CHATINPUTSTRING, CHATINPUTCHANGE, CHATINPUTENTER = ui.inputText('', CHATINPUTSTRING)
+            chatInputActive = ui.itemActive()
+            if CHATINPUTENTER then 
+                ac.sendChatMessage(CHATINPUTSTRING)
+                CHATINPUTSTRING = ''
+            end
+        elseif chatFadeTimer > 0 then
+            ui.drawRectFilled(vec2(20,8), vec2(213, 30), rgbm(0.1,0.1,0.1,0.66*chatFadeTimer), 2)
         end
     end)
 
