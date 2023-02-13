@@ -1,9 +1,12 @@
 --made by XTZ, CheesyManiac
 --i'd like to apologize in advance for any piece of code that mightve gotten mishandled and abused in the following lines
 
+--todo
+--chatinput refinement
+
 --ideas
---map view instead of chat
---broken screen on high gforce, 2 stages, one only glass cracks second one with a broken display
+--map view instead of chat option for singleplayer, zoom setting slider but other than just centered on the player, simple black triangles for player cars, kinda like comfy map but in pure black, since a outline glow is probably too much work use a grey for player cars
+--broken screen on high gforce, 2 stages, one only glass cracks second one with a broken display, on high gforce toggle drawing the images then decay the opacity over time and at 0% opacity toggle off drawing and reset opacity for the next impact
 
 --im sure this does something 
 ui.setAsynchronousImagesLoading(true)
@@ -46,22 +49,23 @@ local DATA = {
         ['SCROLL'] = '',
         ['DISPLAY'] = '',
         ['LENGTH'] = 0,
-        ['PSTR'] = '    PAUSE ll     ',
+        ['PSTR'] = '     PAUSE ll',
         ['isPAUSED'] = false,
         ['SPACES'] = table.concat(SPACETABLE),
         ['FUCK'] = false
     },
     ['CHAT'] = {
-        ['SIZE'] = vec2(210, 240),
-        ['FLAGS'] = bit.bor(ui.WindowFlags.NoDecoration,ui.WindowFlags.NoBackground, ui.WindowFlags.NoNavFocus)
+        ['SIZE'] = vec2(235, 230),
+        ['FLAGS'] = bit.bor(ui.WindowFlags.NoDecoration,ui.WindowFlags.NoBackground, ui.WindowFlags.NoNav, ui.WindowFlags.NoInputs)
     }
 }
 
+
+--chat message event handler
 local CHATCOUNT = 0
 local CHAT = {
 }
 
---chat message event handler
 ac.onChatMessage(function (message, senderCarIndex, senderSessionID)
     CHATCOUNT = CHATCOUNT + 1
 
@@ -77,6 +81,18 @@ ac.onChatMessage(function (message, senderCarIndex, senderSessionID)
     end
 
 end)
+
+--scrolling text, current implementation breaks some Unicode characters (example: full width Kanji, Katakana, Hiragana)
+local SCROLLINTVL
+function SCROLLTEXT()
+    SCROLLINTVL = setInterval(function()
+            local NLETTER = string.sub(DATA.NOWPLAYING.SCROLL, DATA.NOWPLAYING.LENGTH, DATA.NOWPLAYING.LENGTH)
+            local NSTRING = string.sub(DATA.NOWPLAYING.SCROLL, 1, DATA.NOWPLAYING.LENGTH)
+            local SCROLLTEXT = NLETTER .. NSTRING
+            DATA.NOWPLAYING.SCROLL = SCROLLTEXT
+            DATA.NOWPLAYING.DISPLAY = SCROLLTEXT
+    end, 0.5, 'ST')
+end
 
 --update spacing
 function UPDATESPACING()
@@ -99,10 +115,11 @@ function UPDATETIME()
     end
 end
 
---set and update Song
+--set and update song info
 function UPDATESONG()
     if ac.currentlyPlaying().isPlaying and SETTINGS.NOWPLAYING then
         if DATA.NOWPLAYING.ARTIST ~= ac.currentlyPlaying().artist or DATA.NOWPLAYING.TITLE ~= ac.currentlyPlaying().title or DATA.NOWPLAYING.isPAUSED or DATA.NOWPLAYING.FUCK then
+            if not SCROLLINTVL then SCROLLTEXT() end
             DATA.NOWPLAYING.isPAUSED = false
             DATA.NOWPLAYING.FUCK = false
             DATA.NOWPLAYING.ARTIST = ac.currentlyPlaying().artist
@@ -111,9 +128,10 @@ function UPDATESONG()
             DATA.NOWPLAYING.LENGTH = string.len(DATA.NOWPLAYING.SCROLL)
         end
     elseif not ac.currentlyPlaying().isPlaying and not DATA.NOWPLAYING.isPAUSED and SETTINGS.NOWPLAYING then
+        if SCROLLINTVL then clearInterval(SCROLLINTVL) SCROLLINTVL = nil end
         DATA.NOWPLAYING.isPAUSED = true
-        DATA.NOWPLAYING.SCROLL = DATA.NOWPLAYING.PSTR
         DATA.NOWPLAYING.LENGTH = string.len(DATA.NOWPLAYING.PSTR)
+        DATA.NOWPLAYING.DISPLAY = DATA.NOWPLAYING.PSTR
     end
 end
 
@@ -121,19 +139,33 @@ end
 UPDATETIME()
 UPDATESONG()
 
-setInterval(function()
-UPDATETIME()
-UPDATESONG()
-end, 2)
+--update these every 2s, for realtime checking the time every 2s isnt nessary but with tracktime enabled and a high timeofdaymult a ingame minute could be really fast.
+local UPDATEINTVL
+function RUNUPDATE()
+    UPDATEINTVL = setInterval(function()
+        UPDATESONG()
+        UPDATETIME()
+    end, 2, 'RU')
+end
 
---scrolling text shenanigans, will currently always run and scroll the pause text even if its disabled
-setInterval(function()
-        local NLETTER = string.sub(DATA.NOWPLAYING.SCROLL, DATA.NOWPLAYING.LENGTH, DATA.NOWPLAYING.LENGTH)
-        local NSTRING = string.sub(DATA.NOWPLAYING.SCROLL, 1, DATA.NOWPLAYING.LENGTH)
-        local SCROLLTEXT = NLETTER .. NSTRING
-        DATA.NOWPLAYING.SCROLL = SCROLLTEXT
-        DATA.NOWPLAYING.DISPLAY = SCROLLTEXT
-end, 0.5)
+--turn on/off invervals when app gets opened/closed
+function onHideWindow()
+    clearInterval(UPDATEINTVL)
+    clearInterval(SCROLLINTVL)
+    UPDATEINTVL = nil
+    SCROLLINTVL = nil
+end
+
+function onShowWindow()
+    if ac.currentlyPlaying().isPlaying then 
+        DATA.NOWPLAYING.DISPLAY = DATA.NOWPLAYING.ARTIST .. ' - ' .. DATA.NOWPLAYING.TITLE .. DATA.NOWPLAYING.SPACES
+    elseif not ac.currentlyPlaying().isPlaying then 
+        DATA.NOWPLAYING.DISPLAY = DATA.NOWPLAYING.PSTR
+    end
+    DATA.NOWPLAYING.FUCK = true
+    DATA.NOWPLAYING.isPAUSED = false
+    RUNUPDATE()
+end
 
 --settings window
 function script.windowMainSettings(dt)
@@ -147,10 +179,20 @@ function script.windowMainSettings(dt)
             end
             if ui.checkbox("Display Current Song", SETTINGS.NOWPLAYING) then
                 SETTINGS.NOWPLAYING = not SETTINGS.NOWPLAYING
-                UPDATESONG()
+                if SETTINGS.NOWPLAYING then
+                    DATA.NOWPLAYING.FUCK = true
+                    RUNUPDATE() --will also update time but who cares 
+                else
+                    clearInterval(UPDATEINTVL)
+                    clearInterval(SCROLLINTVL)
+                    UPDATEINTVL = nil
+                    SCROLLINTVL = nil
+                end
             end
             --change the spacing between the start and end of playing song names
             if SETTINGS.NOWPLAYING then
+                ui.text('\t')
+                ui.sameLine()
                 SETTINGS.SPACES = ui.slider('##', SETTINGS.SPACES, 1,25, 'Spaces' .. ': %.0f')
                 if string.len(DATA.NOWPLAYING.SPACES) ~= SETTINGS.SPACES then
                     UPDATESPACING()
@@ -171,46 +213,63 @@ local VECY = vec2(DATA.SIZE.x + DATA.PADDING.x, DATA.SIZE.y - DATA.PADDING.y):sc
 --main app window
 function script.windowMain(dt)
 
---draw display image
+    --draw display image
     ui.drawImage(DATA.SRC.DISPLAY, VECX, VECY, true)
 
---draw song info if enabled
-if SETTINGS.NOWPLAYING then
-    ui.pushDWriteFont(DATA.SRC.FONT)
-    ui.setCursor(vec2(92, 69))
-    ui.dwriteText(DATA.NOWPLAYING.DISPLAY, 16, 0)
-    ui.popDWriteFont()
-end
+    --draw song info if enabled
+    if SETTINGS.NOWPLAYING then
+        ui.pushDWriteFont(DATA.SRC.FONT)
+        ui.setCursor(vec2(92, 71))
+        ui.dwriteTextAligned(DATA.NOWPLAYING.DISPLAY, 16, -1, 0, vec2(142,17), false, 0)
+        ui.popDWriteFont()
+    end
 
---draw time text
+    --draw time text
     ui.pushDWriteFont(DATA.SRC.FONT)
-    ui.setCursor(vec2(35, 69))
-    ui.dwriteText(DATA.TIME.DISPLAY, 16, 0)
+    ui.setCursor(vec2(34, 71))
+    ui.dwriteTextAligned(DATA.TIME.DISPLAY, 16, 0, 0, vec2(55,17), false, 0)
     ui.popDWriteFont()
 
---draw the chat text - text is above the glare image for some reason
-    ui.setCursor(vec2(35, 95))    
+    --draw the chat text - text is above the glare because the glare doesnt affect the childwindow
+    ui.setCursor(vec2(20, 93))
     ui.childWindow("Chatbox", DATA.CHAT.SIZE, DATA.CHAT.FLAGS, function ()
         if CHATCOUNT > 0 then
             for i = 1, CHATCOUNT do
                 ui.pushDWriteFont(DATA.SRC.FONT)
-                ui.dwriteTextWrapped(CHAT[i][2]..":  "..CHAT[i][1], 16,0)
+                ui.dwriteTextWrapped(CHAT[i][2]..":  "..CHAT[i][1], 16, 0)
                 ui.popDWriteFont()
                 ui.setScrollHereY(1)
             end
         end
-end)
+    end)
+
+    --draw glare and glow if enabled, in childwindow to be ontop of the chat text, perhaps figure out a way to get mouseclickthrough so it can be on top of everything without blocking chatinput
+    ui.setCursor(vec2(0, 0))
+    ui.childWindow('lol', vec2(300, 415), DATA.CHAT.FLAGS, function ()
+
+        --draw glare image if enabled
+        if SETTINGS.GLARE then
+            ui.drawImage(DATA.SRC.GLARE, VECX, VECY, true)
+        end
+
+        --draw glow image if enabled
+        if SETTINGS.GLOW then
+            ui.drawImage(DATA.SRC.GLOW, VECX, VECY, true)
+        end
+    end)
+
+    --chat input, works for now
+    --todo:  hide input background when mouse isnt over the app or just make it use the nokia font withouth a bg?
+    --       clear input but keep text input going like regular chat app
+    ui.setCursor(vec2(18, 306))
+    ui.childWindow('Chatinput', vec2(298, 32), DATA.CHAT.FLAGS, function ()
+       local CHATINPUTSTRING, CHATINPUTCHANGE, CHATINPUTENTER = ui.inputText('', CHATINPUTSTRING)
+        if CHATINPUTENTER then 
+        ac.sendChatMessage(CHATINPUTSTRING)
+        CHATINPUTSTRING = ''
+        end
+    end)
 
 --draw phone image
     ui.drawImage(DATA.SRC.PHONE, VECX, VECY, true)
-
---draw glare image if enabled
-    if SETTINGS.GLARE then
-        ui.drawImage(DATA.SRC.GLARE, VECX, VECY, true)
-    end
-
---draw glow image if enabled
-    if SETTINGS.GLOW then
-        ui.drawImage(DATA.SRC.GLOW, VECX, VECY, true)
-    end
 end
