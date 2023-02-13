@@ -1,9 +1,9 @@
---made by XTZ
+--made by XTZ, CheesyManiac
 --i'd like to apologize in advance for any piece of code that mightve gotten mishandled and abused in the following lines
 
---todo:
---chat functionality
---option move the app down after x amount of chat inactivity so only time/song is visible, popping back up on new messges
+--ideas
+--map view instead of chat
+--broken screen on high gforce, 2 stages, one only glass cracks second one with a broken display
 
 --im sure this does something 
 ui.setAsynchronousImagesLoading(true)
@@ -47,7 +47,7 @@ local DATA = {
         ['DISPLAY'] = '',
         ['LENGTH'] = 0,
         ['PSTR'] = '    PAUSE ll     ',
-        ['isPAUSED'] = ac.currentlyPlaying().isPlaying,
+        ['isPAUSED'] = false,
         ['SPACES'] = table.concat(SPACETABLE),
         ['FUCK'] = false
     },
@@ -57,13 +57,25 @@ local DATA = {
     }
 }
 
-local chatCount = 0
+local CHATCOUNT = 0
 local CHAT = {
 }
 
+--chat message event handler
 ac.onChatMessage(function (message, senderCarIndex, senderSessionID)
-    chatCount = chatCount +1
-    CHAT[chatCount] = {message, ac.getDriverName(senderCarIndex)}
+    CHATCOUNT = CHATCOUNT + 1
+
+--get message content and sender
+    if ac.getDriverName(senderCarIndex) then
+    CHAT[CHATCOUNT] = {message, ac.getDriverName(senderCarIndex)}
+    else CHAT[CHATCOUNT] = {message, 'Server'} end
+
+--only keep the 8 latest messages
+    if table.getn(CHAT) > 8 then
+    table.remove(CHAT,1)
+    CHATCOUNT = table.getn(CHAT)
+    end
+
 end)
 
 --update spacing
@@ -152,11 +164,15 @@ function script.windowMainSettings(dt)
     end)
 end
 
+--probably not labled correctly, dont care for now
+local VECX = vec2(DATA.PADDING.x, DATA.SIZE.y - DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE)
+local VECY = vec2(DATA.SIZE.x + DATA.PADDING.x, DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE)
+
 --main app window
 function script.windowMain(dt)
 
 --draw display image
-    ui.drawImage(DATA.SRC.DISPLAY, vec2(DATA.PADDING.x, DATA.SIZE.y - DATA.SIZE.y - DATA.PADDING.y - 2):scale(DATA.SCALE), vec2(DATA.SIZE.x + DATA.PADDING.x, DATA.SIZE.y - DATA.PADDING.y + 2):scale(DATA.SCALE), true)
+    ui.drawImage(DATA.SRC.DISPLAY, VECX, VECY, true)
 
 --draw song info if enabled
 if SETTINGS.NOWPLAYING then
@@ -172,27 +188,29 @@ end
     ui.dwriteText(DATA.TIME.DISPLAY, 16, 0)
     ui.popDWriteFont()
 
---draw the chat text
+--draw the chat text - text is above the glare image for some reason
     ui.setCursor(vec2(35, 95))    
     ui.childWindow("Chatbox", DATA.CHAT.SIZE, DATA.CHAT.FLAGS, function ()
-        for i = 1, chatCount do
-            ui.pushDWriteFont(DATA.SRC.FONT)
-            ui.dwriteTextWrapped(CHAT[i][2]..":  "..CHAT[i][1], 16,0)
-            ui.popDWriteFont()
-            ui.setScrollHereY(1)
+        if CHATCOUNT > 0 then
+            for i = 1, CHATCOUNT do
+                ui.pushDWriteFont(DATA.SRC.FONT)
+                ui.dwriteTextWrapped(CHAT[i][2]..":  "..CHAT[i][1], 16,0)
+                ui.popDWriteFont()
+                ui.setScrollHereY(1)
+            end
         end
-    end)
+end)
 
 --draw phone image
-    ui.drawImage(DATA.SRC.PHONE, vec2(DATA.PADDING.x, DATA.SIZE.y - DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE), vec2(DATA.SIZE.x + DATA.PADDING.x, DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE), true)
+    ui.drawImage(DATA.SRC.PHONE, VECX, VECY, true)
 
 --draw glare image if enabled
     if SETTINGS.GLARE then
-        ui.drawImage(DATA.SRC.GLARE, vec2(DATA.PADDING.x, DATA.SIZE.y - 1 - DATA.SIZE.y - 1 - DATA.PADDING.y):scale(DATA.SCALE), vec2(DATA.SIZE.x + DATA.PADDING.x, DATA.SIZE.y + 2 - DATA.PADDING.y + 1):scale(DATA.SCALE), true)
+        ui.drawImage(DATA.SRC.GLARE, VECX, VECY, true)
     end
 
 --draw glow image if enabled
     if SETTINGS.GLOW then
-        ui.drawImage(DATA.SRC.GLOW, vec2(DATA.PADDING.x, DATA.SIZE.y - DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE), vec2(DATA.SIZE.x + DATA.PADDING.x, DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE), true)
+        ui.drawImage(DATA.SRC.GLOW, VECX, VECY, true)
     end
 end
