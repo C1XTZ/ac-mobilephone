@@ -24,3 +24,4 @@ Any questions or suggestions feel free to message me here, on Discord or on Twit
 
 # Credits
 * [Nokia Cellphone FC Small](https://www.dafont.com/nokia-cellphone.font) by [Zeh Fernando](https://portfolio.zehfernando.com/)
+* [Lua 5.1 UTF-8](https://github.com/meepen/Lua-5.1-UTF-8)
