@@ -143,8 +143,8 @@ end
 local UPDATEINTVL
 function RUNUPDATE()
     UPDATEINTVL = setInterval(function()
-        UPDATESONG()
         UPDATETIME()
+        if SETTINGS.NOWPLAYING then UPDATESONG() end
     end, 2, 'RU')
 end
 
@@ -156,6 +156,7 @@ function onHideWindow()
     SCROLLINTVL = nil
 end
 
+--this works as intended when reloading the script while already ingame because csp has already started the AcTools.CurrentlyPlaying.exe, when just starting the game that exe might take longer than 2s to start for whatever reason, in those cases it will go from loading to paused. i hate it
 function onShowWindow()
     if SETTINGS.NOWPLAYING then 
         DATA.NOWPLAYING.DISPLAY = '    Loading...'
@@ -180,12 +181,13 @@ function script.windowMainSettings(dt)
                 SETTINGS.NOWPLAYING = not SETTINGS.NOWPLAYING
                 if SETTINGS.NOWPLAYING then
                     DATA.NOWPLAYING.FUCK = true
-                    RUNUPDATE() --will also update time but who cares 
+                    UPDATESONG()
                 else
                     clearInterval(UPDATEINTVL)
                     clearInterval(SCROLLINTVL)
                     UPDATEINTVL = nil
                     SCROLLINTVL = nil
+                    RUNUPDATE()
                 end
             end
             --change the spacing between the start and end of playing song names
@@ -205,7 +207,7 @@ function script.windowMainSettings(dt)
     end)
 end
 
---probably not labled correctly, dont care for now
+--image sizing that is probably not labled correctly, dont care for now
 local VECX = vec2(DATA.PADDING.x, DATA.SIZE.y - DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE)
 local VECY = vec2(DATA.SIZE.x + DATA.PADDING.x, DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE)
 
@@ -239,7 +241,7 @@ function script.windowMain(dt)
     ui.dwriteTextAligned(DATA.TIME.DISPLAY, 16, 0, 0, vec2(55,17), false, 0)
     ui.popDWriteFont()
 
-    --draw the chat text
+    --draw chat messages
     ui.setCursor(vec2(20, 93))
     ui.childWindow("Chatbox", DATA.CHAT.SIZE, DATA.CHAT.FLAGS, function ()
         if CHATCOUNT > 0 then
@@ -252,7 +254,7 @@ function script.windowMain(dt)
         end
     end)
 
-    --draw glare and glow if enabled, in childwindow to be ontop of the chat text, perhaps figure out a way to get mouseclickthrough so it can be on top of everything without blocking chatinput
+    --draw glare and glow if enabled
     ui.setCursor(vec2(0, 0))
     ui.childWindow('onTopImages', vec2(300, 415), DATA.CHAT.FLAGS, function ()
 
