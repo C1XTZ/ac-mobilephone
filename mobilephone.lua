@@ -23,7 +23,8 @@ local SETTINGS = ac.storage {
     GLOW = true,
     TRACKTIME = false,
     NOWPLAYING = true,
-    SPACES = 5
+    SPACES = 5,
+    DAMAGE = true
 }
 
 --initial spacing
@@ -42,6 +43,8 @@ local DATA = {
         ['PHONE'] = './src/PHONE.png',
         ['GLARE'] = './src/GLARE.png',
         ['GLOW'] = './src/GLOW.png',
+        ['CRACKED'] = './src/CRACKED.png',
+        ['DESTROYED'] = './src/DESTROYED.png',
         ['FONT'] = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src')
     },
     ['TIME'] = {
@@ -63,6 +66,10 @@ local DATA = {
     ['CHAT'] = {
         ['SIZE'] = vec2(235, 230),
         ['FLAGS'] = bit.bor(ui.WindowFlags.NoDecoration,ui.WindowFlags.NoBackground, ui.WindowFlags.NoNav, ui.WindowFlags.NoInputs)
+    },
+    ['CAR'] = {
+        ['PLAYER'] = ac.getCar(0),
+        ['DAMAGESTATE'] = 0
     }
 }
 
@@ -171,12 +178,18 @@ end
 function script.windowMainSettings(dt)
     ui.tabBar('TabBar', function()
         ui.tabItem('Settings', function()
+
+            --display glare toggle
             if ui.checkbox("Display Glare", SETTINGS.GLARE) then
                 SETTINGS.GLARE = not SETTINGS.GLARE
             end
+
+            --display glow toggle
             if ui.checkbox("Display Glow", SETTINGS.GLOW) then
                 SETTINGS.GLOW = not SETTINGS.GLOW
             end
+
+            --nowplaying toggle
             if ui.checkbox("Display Current Song", SETTINGS.NOWPLAYING) then
                 SETTINGS.NOWPLAYING = not SETTINGS.NOWPLAYING
                 if SETTINGS.NOWPLAYING then
@@ -190,6 +203,7 @@ function script.windowMainSettings(dt)
                     RUNUPDATE()
                 end
             end
+
             --change the spacing between the start and end of playing song names
             if SETTINGS.NOWPLAYING then
                 ui.text('\t')
@@ -203,6 +217,11 @@ function script.windowMainSettings(dt)
                 SETTINGS.TRACKTIME = not SETTINGS.TRACKTIME
                 UPDATETIME()
             end
+
+            --display damage toggle
+            if ui.checkbox("Display Screen Damage", SETTINGS.DAMAGE) then
+                SETTINGS.DAMAGE = not SETTINGS.DAMAGE
+            end
         end)
     end)
 end
@@ -211,9 +230,13 @@ end
 local VECX = vec2(DATA.PADDING.x, DATA.SIZE.y - DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE)
 local VECY = vec2(DATA.SIZE.x + DATA.PADDING.x, DATA.SIZE.y - DATA.PADDING.y):scale(DATA.SCALE)
 
---main app window
 local CHATFADETIMER = 0
 local CHATINPUTACTIVE = false
+local DAMAGEFADETIMER = 0
+local LEFT, RIGHT, FRONT, BACK = 0, 0, 0, 0
+local FORCES = {}
+
+--main app window
 function script.windowMain(dt)
 
     --set fade timer if mouse is not hovering over the app
@@ -263,8 +286,8 @@ function script.windowMain(dt)
             ui.drawImage(DATA.SRC.GLARE, VECX, VECY, true)
         end
 
-        --draw glow image if enabled
-        if SETTINGS.GLOW then
+        --draw glow image if enabled and the phone isn't damaged
+        if SETTINGS.GLOW and not SETTINGS.DAMAGE or SETTINGS.DAMAGE and DATA.CAR.DAMAGESTATE ~= 2 then
             ui.drawImage(DATA.SRC.GLOW, VECX, VECY, true)
         end
     end)
@@ -285,6 +308,56 @@ function script.windowMain(dt)
             ui.drawRectFilled(vec2(20,8), vec2(213, 30), rgbm(0.1,0.1,0.1,0.66*CHATFADETIMER), 2)
         end
     end)
+
+    --"break" the phone screen on harder impacts if enabled
+    if SETTINGS.DAMAGE then
+
+        --check if player colided with anything, and calculate the force
+        if DATA.CAR.PLAYER.collidedWith >= 0 then
+
+            --reset the table for new colisions
+            if DATA.CAR.DAMAGESTATE == 0 then FORCES = {} end
+
+            --invert negative values to be able to add them together
+            if DATA.CAR.PLAYER.acceleration.x < 0 then LEFT = DATA.CAR.PLAYER.acceleration.x * -1 else RIGHT =  DATA.CAR.PLAYER.acceleration.x end
+            if DATA.CAR.PLAYER.acceleration.z < 0 then FRONT = DATA.CAR.PLAYER.acceleration.z * -1 else BACK = DATA.CAR.PLAYER.acceleration.z end
+
+            --add all the forces together and calculate the mean value (divide by 2 might be wrong but i think you cant have values in more than 2 directions at the same time)
+            --then insert them into a table and then get the hardest force value
+            table.insert(FORCES, (FRONT + BACK + LEFT + RIGHT) / 2)
+            local MAXFORCE = math.max(unpack(FORCES))
+            ac.log(MAXFORCE)
+            --set damage state if forces exeed these values, i just set them to something arbitrary for now fine tuning might be needed maybe add setting sliders?
+            if MAXFORCE > 30 then 
+                DATA.CAR.DAMAGESTATE = 2 
+            elseif MAXFORCE > 15 then 
+                DATA.CAR.DAMAGESTATE = 1 
+            end
+        end
+
+        --timer for how long the damage will be displayed, maybe add to settings
+        if DATA.CAR.DAMAGESTATE > 0 and DAMAGEFADETIMER == 0 then
+            DAMAGEFADETIMER = 5
+        elseif DAMAGEFADETIMER > 0 then
+            DAMAGEFADETIMER = DAMAGEFADETIMER - dt
+        elseif DAMAGEFADETIMER <= 0 then
+            DATA.CAR.DAMAGESTATE = 0
+            DAMAGEFADETIMER = 0
+        end
+
+        --displays damage on top of everything else, you cant use the chat input for the damage duration (intended) but that makes the glare appear below the damage.
+        if DATA.CAR.DAMAGESTATE > 0 then
+            ui.setCursor(vec2(0, 0))
+            ui.childWindow('DisplayDamage', vec2(302, 417), DATA.CHAT.FLAGS, function ()
+                if DATA.CAR.DAMAGESTATE == 2 then
+                    ui.drawImage(DATA.SRC.DESTROYED, VECX, VECY,rgbm(1,1,1,1), true)
+                end
+                if DATA.CAR.DAMAGESTATE >= 1 then
+                    ui.drawImage(DATA.SRC.CRACKED, VECX, VECY, rgbm(1,1,1,1), true)
+                end
+            end)
+        end
+end
 
 --draw phone image
     ui.drawImage(DATA.SRC.PHONE, VECX, VECY, true)
