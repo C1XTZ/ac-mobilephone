@@ -261,7 +261,6 @@ end
 --image sizing that is probably not labled correctly, dont care for now
 local vecX = vec2(data.padding.x, data.size.y - data.size.y - data.padding.y):scale(data.scale)
 local vecY = vec2(data.size.x + data.padding.x, data.size.y - data.padding.y):scale(data.scale)
-
 local chatFadeTimer = 0
 local chatInputActive = false
 local damageDurationTimer = 0
