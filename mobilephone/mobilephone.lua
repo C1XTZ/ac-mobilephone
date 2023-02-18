@@ -49,7 +49,7 @@ local data = {
         ['glow'] = './src/img/glow.png',
         ['cracked'] = './src/img/cracked.png',
         ['destroyed'] = './src/img/destroyed.png',
-        ['font'] = ui.DWriteFont('NOKIA CELLphone FC SMALL', './src')
+        ['font'] = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src')
     },
     ['time'] = {
         ['Local'] = '',
