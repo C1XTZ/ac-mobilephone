@@ -6,7 +6,8 @@
 --make phone resizeable (:clueless::thumbsup: good luck)
 --map view instead of chat option for singleplayer, zoom setting slider but other than just centered on the player, simple black triangles for player cars, kinda like comfy map but in pure black, since a outline glow is probably too much work use a grey for player cars so they dont blend in with the track or the other way around
 
---im sure this does something
+--im sure this does something 
+--(che: you dont really need this since you're loading only a few images at the start, but if you add the map then it'll be vital)
 ui.setAsynchronousImagesLoading(true)
 
 --adding this so unicode characters like kanji dont break while scrolling
@@ -34,7 +35,9 @@ local settings = ac.storage {
     chatmove = true,
     chattimer = 15,
     chatmovespeed = 3,
-    chatfontsize = 16
+    chatfontsize = 16,
+    customColour = false,
+    colour = rgbm(0.588873, 0.900824, 0.650712,1)
 }
 
 --initial spacing
@@ -42,6 +45,8 @@ local spacetable = {}
 for i = 0, settings.spaces + 1 do
     spacetable[i] = ' '
 end
+
+
 
 --we do a minuscule amount of declaring. do i need all of this? probably not but i like the way it makes me feel
 local data = {
@@ -56,7 +61,8 @@ local data = {
         ['glow'] = './src/img/glow.png',
         ['cracked'] = './src/img/cracked.png',
         ['destroyed'] = './src/img/destroyed.png',
-        ['font'] = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src')
+        ['font'] = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src'),
+        ['colourFlags'] = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.NoSidePreview,ui.ColorPickerFlags.NoDragDrop, ui.ColorPickerFlags.NoLabel, ui.ColorPickerFlags.DisplayRGB)
     },
     ['time'] = {
         ['Local'] = '',
@@ -89,6 +95,7 @@ local chatcount = 0
 local chat = {}
 local chatTimer = settings.chattimer
 local movePhone = 0
+local movePhone2 = 0
 local movePhoneDown = true
 local movePhoneUp = false
 
@@ -215,6 +222,12 @@ function script.windowMainSettings(dt)
             if ui.checkbox("Display Glow", settings.glow) then
                 settings.glow = not settings.glow
             end
+            if ui.checkbox("Custom Display Colour", settings.customColour) then
+                settings.customColour = not settings.customColour
+            end
+            if settings.customColour then
+                ui.colorPicker("Display Colour Picker", settings.colour, data.src.colourFlags)
+            end
 
             --nowplaying toggle
             if ui.checkbox("Display Current Song", settings.nowplaying) then
@@ -296,7 +309,7 @@ function script.windowMainSettings(dt)
                 end
             end
 
-            --inactivity and movespeed slideres
+            --inactivity and movespeed sliders
             if settings.chatmove then
                 ui.text('\t')
                 ui.sameLine()
@@ -334,12 +347,14 @@ function script.windowMain(dt)
             movePhoneDown = true
         end
 
-        --move the phone
+        --move the phone but now with smootherstep
         if chatTimer <= 0 and movePhoneDown then
             movePhoneDown = true
             movePhone = math.floor(movePhone + dt * 100 * settings.chatmovespeed)
+            movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, 328))*328)
         elseif chatTimer > 0 and movePhoneUp then
             movePhone = math.floor(movePhone - dt * 100 * settings.chatmovespeed)
+            movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, 328))*328) --the entire thing doesnt work if I don't make it a new variable. I have idea why and I am far too tired to sit and work it out for another 2 hours
         end
 
         --stop the phone from moving further if its in position
@@ -370,11 +385,11 @@ function script.windowMain(dt)
     end
 
     --draw main display
-    ui.setCursor(vec2(0, 0 + movePhone))
+    ui.setCursor(vec2(0, 0 + movePhone2))
     ui.childWindow("Display", data.size, data.chat.flags, function()
 
         --draw display image
-        ui.drawImage(data.src.display, vecX, vecY, true)
+        ui.drawImage(data.src.display, vecX, vecY, settings.colour, true)
 
         --draw song info if enabled
         if settings.nowplaying then
@@ -392,7 +407,7 @@ function script.windowMain(dt)
     end)
 
     --draw chat messages
-    ui.setCursor(vec2(20, 93 + movePhone))
+    ui.setCursor(vec2(20, 93 + movePhone2))
     ui.childWindow("Chatbox", data.chat.size, data.chat.flags, function()
         if chatcount > 0 then
             for i = 1, chatcount do
@@ -454,7 +469,7 @@ function script.windowMain(dt)
 
         --display damage depending on state
         if data.car.damagestate > 0 and fadeDurationTimer > 0 then
-            ui.setCursor(vec2(0, 0 + movePhone))
+            ui.setCursor(vec2(0, 0 + movePhone2))
             ui.childWindow('DisplayDamage', vec2(302, 417), data.chat.flags, function()
                 if data.car.damagestate > 1 then
                     ui.drawImage(data.src.destroyed, vecX, vecY, rgbm(1, 1, 1, ((100 / settings.fadeduration) / 100) * fadeDurationTimer), true)
@@ -467,7 +482,7 @@ function script.windowMain(dt)
     end
 
     --draw images that need to be on top
-    ui.setCursor(vec2(0, 0 + movePhone))
+    ui.setCursor(vec2(0, 0 + movePhone2))
     ui.childWindow('onTopImages', vec2(300, 415), data.chat.flags, function()
 
         --draw phone image
@@ -480,13 +495,13 @@ function script.windowMain(dt)
 
         --draw glow image if enabled
         if settings.glow then
-            ui.drawImage(data.src.glow, vecX, vecY, true)
+            ui.drawImage(data.src.glow, vecX, vecY, settings.colour, true)
         end
     end)
 
     --chat input
     --not affected by glare/glow because childwindows dont have clickthrough so I cant move it "below", not important just a ocd thing
-    ui.setCursor(vec2(18, 306 + movePhone))
+    ui.setCursor(vec2(18, 306 + movePhone2))
     ui.childWindow('Chatinput', vec2(298, 32), data.chat.flags, function()
         if phoneHovered and movePhone == 0 or chatInputActive then
 
