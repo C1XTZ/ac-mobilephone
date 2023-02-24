@@ -63,7 +63,7 @@ local data = {
         ['destroyed'] = './src/img/destroyed.png',
         ['font'] = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src'),
         ['colorFlags'] = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.NoSidePreview, ui.ColorPickerFlags.NoDragDrop, ui.ColorPickerFlags.NoLabel, ui.ColorPickerFlags.DisplayRGB),
-        ['color'] = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
+        ['color'] = rgbm(0.588873, 0.900824, 0.650712, 1)
     },
     ['time'] = {
         ['Local'] = '',
@@ -90,6 +90,11 @@ local data = {
         ['damagestate'] = 0
     }
 }
+
+--use saved color instead if enabled
+if settings.customcolor then
+    data.src.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
+end
 
 --chat message event handler
 local chatcount = 0
@@ -370,7 +375,7 @@ function script.windowMain(dt)
             movePhone = math.floor(movePhone - dt * 100 * settings.chatmovespeed)
             movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, 328)) * 328)
             --che: the entire thing doesnt work if I don't make it a new variable. I have idea why and I am far too tired to sit and work it out for another 2 hours
-            --xtz: also doesnt move the phone back up when you disable it while its down, will instantly snap back up once you enable it again and move your mouse over
+            --xtz: it seems to work, so im not touching it
         end
 
         --stop the phone from moving further if its in position
@@ -386,6 +391,7 @@ function script.windowMain(dt)
         --if the settings gets disabled, set the phone to be placed correctly
     elseif not settings.chatmove and movePhone ~= 0 then
         movePhone = 0
+        movePhoneUp = false
     end
 
     --set fade timer if mouse is not hovering over the app
