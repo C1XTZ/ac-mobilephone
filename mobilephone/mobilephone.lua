@@ -1,17 +1,16 @@
 --made by XTZ, CheesyManiac
---i'd like to apologize in advance for any piece of code that mightve gotten mishandled and abused in the following lines
+--xtz: i'd like to apologize in advance for any piece of code that mightve gotten mishandled and abused in the following lines
 
 --ideas
---display/glow color picker (Idea: Eurobeat)
---make phone resizeable (:clueless::thumbsup: good luck)
+--make phone resizeable (xtz: :clueless::thumbsup: good luck, personally dont need it maybe if enough people complain ill comeback to this and rewrite the entire thing)
 --map view instead of chat option for singleplayer, zoom setting slider but other than just centered on the player, simple black triangles for player cars, kinda like comfy map but in pure black, since a outline glow is probably too much work use a grey for player cars so they dont blend in with the track or the other way around
 
---im sure this does something 
---(che: you dont really need this since you're loading only a few images at the start, but if you add the map then it'll be vital)
+--xtz: im sure this does something
+--che: you dont really need this since you're loading only a few images at the start, but if you add the map then it'll be vital
 ui.setAsynchronousImagesLoading(true)
 
 --adding this so unicode characters like kanji dont break while scrolling
---had to add a -1 to data.nowplaying.length and a +1 to settings.spaces because otherwise the function complains about a nil value for j, probably fine the way it is
+--xtz: had to add a -1 to data.nowplaying.length and a +1 to settings.spaces because otherwise the function complains about a nil value for j and im too lazy to fix this
 require 'src.utf8'
 function utf8.sub(s, i, j)
     i = utf8.offset(s, i)
@@ -36,8 +35,10 @@ local settings = ac.storage {
     chattimer = 15,
     chatmovespeed = 3,
     chatfontsize = 16,
-    customColour = false,
-    colour = rgbm(0.588873, 0.900824, 0.650712,1)
+    customcolor = false,
+    colorR = 0.588873,
+    colorG = 0.900824,
+    colorB = 0.650712
 }
 
 --initial spacing
@@ -46,11 +47,10 @@ for i = 0, settings.spaces + 1 do
     spacetable[i] = ' '
 end
 
-
-
---we do a minuscule amount of declaring. do i need all of this? probably not but i like the way it makes me feel
+--we do a minuscule amount of declaring
 local data = {
     ['size'] = vec2(250, 400),
+    ['appsize'] = vec2(270, 420),
     ['padding'] = vec2(10, -21),
     ['scale'] = 1,
     ['offset'] = 328,
@@ -62,7 +62,8 @@ local data = {
         ['cracked'] = './src/img/cracked.png',
         ['destroyed'] = './src/img/destroyed.png',
         ['font'] = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src'),
-        ['colourFlags'] = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.NoSidePreview,ui.ColorPickerFlags.NoDragDrop, ui.ColorPickerFlags.NoLabel, ui.ColorPickerFlags.DisplayRGB)
+        ['colorFlags'] = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.NoSidePreview, ui.ColorPickerFlags.NoDragDrop, ui.ColorPickerFlags.NoLabel, ui.ColorPickerFlags.DisplayRGB),
+        ['color'] = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
     },
     ['time'] = {
         ['Local'] = '',
@@ -115,8 +116,8 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
         chat[chatcount] = { message, '' }
     end
 
-    --only keep the 20 latest messages (this is enough for font sizes as small as 6)
-    if table.getn(chat) > 20 then
+    --only keep the 25 latest messages
+    if table.getn(chat) > 25 then
         table.remove(chat, 1)
         chatcount = table.getn(chat)
     end
@@ -178,7 +179,7 @@ function UpdateSong()
     end
 end
 
---update these every 2s, for realtime checking the time every 2s isnt necessary but with tracktime enabled and a high timeofdaymult a ingame minute could be really fast.
+--update these every 2s, should be good enough
 local updtintvl
 function RunUpdate()
     updtintvl = setInterval(function()
@@ -195,7 +196,7 @@ function onHideWindow()
     scrlintvl = nil
 end
 
---this works as intended when reloading the script while already ingame because csp has already started the AcTools.CurrentlyPlaying.exe, when just starting the game that exe might take longer than 2s to start for whatever reason, in those cases it will go from loading to paused. i hate it
+--xtz: this works as intended when reloading the script while already ingame because csp has already started the AcTools.CurrentlyPlaying.exe, when just starting the game that exe might take longer than 2s to start for whatever reason and i hate it
 function onShowWindow()
     if settings.nowplaying then
         data.nowplaying.display = '    Loading...'
@@ -222,11 +223,25 @@ function script.windowMainSettings(dt)
             if ui.checkbox("Display Glow", settings.glow) then
                 settings.glow = not settings.glow
             end
-            if ui.checkbox("Custom Display Colour", settings.customColour) then
-                settings.customColour = not settings.customColour
+
+            --display and glow color
+            if ui.checkbox("Custom Display Color", settings.customcolor) then
+                settings.customcolor = not settings.customcolor
+
+                --reset to default color if disabled
+                if not settings.customcolor then
+                    data.src.color = rgbm(0.588873, 0.900824, 0.650712, 1)
+                end
             end
-            if settings.customColour then
-                ui.colorPicker("Display Colour Picker", settings.colour, data.src.colourFlags)
+
+            --load saved colors if enabled and display colorpicker and save the new color 
+            --xtz: a save button might be a good idea instead of instantly overwriting the saved color on change, for now this is fine
+            if settings.customcolor then
+                data.src.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
+                colorChange = ui.colorPicker("Display Color Picker", data.src.color, data.src.colorFlags)
+                if colorChange then
+                    settings.colorR, settings.colorG, settings.colorB = data.src.color.r, data.src.color.g, data.src.color.b
+                end
             end
 
             --nowplaying toggle
@@ -324,7 +339,7 @@ function script.windowMainSettings(dt)
     end)
 end
 
---image sizing that is probably not labled correctly, dont care for now
+--variable parking area
 local vecX = vec2(data.padding.x, data.size.y - data.size.y - data.padding.y):scale(data.scale)
 local vecY = vec2(data.size.x + data.padding.x, data.size.y - data.padding.y):scale(data.scale)
 local chatFadeTimer = 0
@@ -338,7 +353,6 @@ local forces = {}
 function script.windowMain(dt)
 
     --move the phone up/down depending on chat activity
-    --seems to work for the most part, time/nowplaying text is artifacting (https://media.discordapp.net/attachments/856602216047050782/1076711678596628521/image.png) during movement on speeds faster than 1 (depends on fps) if the phone image is drawn below the glare image
     if settings.chatmove then
 
         --countdown until moving phone
@@ -351,10 +365,12 @@ function script.windowMain(dt)
         if chatTimer <= 0 and movePhoneDown then
             movePhoneDown = true
             movePhone = math.floor(movePhone + dt * 100 * settings.chatmovespeed)
-            movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, 328))*328)
+            movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, 328)) * 328)
         elseif chatTimer > 0 and movePhoneUp then
             movePhone = math.floor(movePhone - dt * 100 * settings.chatmovespeed)
-            movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, 328))*328) --the entire thing doesnt work if I don't make it a new variable. I have idea why and I am far too tired to sit and work it out for another 2 hours
+            movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, 328)) * 328)
+            --che: the entire thing doesnt work if I don't make it a new variable. I have idea why and I am far too tired to sit and work it out for another 2 hours
+            --xtz: also doesnt move the phone back up when you disable it while its down, will instantly snap back up once you enable it again and move your mouse over
         end
 
         --stop the phone from moving further if its in position
@@ -386,10 +402,10 @@ function script.windowMain(dt)
 
     --draw main display
     ui.setCursor(vec2(0, 0 + movePhone2))
-    ui.childWindow("Display", data.size, data.chat.flags, function()
+    ui.childWindow("Display", data.appsize, data.chat.flags, function()
 
         --draw display image
-        ui.drawImage(data.src.display, vecX, vecY, settings.colour, true)
+        ui.drawImage(data.src.display, vecX, vecY, data.src.color, true)
 
         --draw song info if enabled
         if settings.nowplaying then
@@ -419,7 +435,7 @@ function script.windowMain(dt)
         end
     end)
 
-    --"break" the phone screen on harder impacts if enabled
+    --break the phone screen on impacts if enabled
     if settings.damage then
 
         --check if player colided with anything, and calculate the force
@@ -432,8 +448,7 @@ function script.windowMain(dt)
             if data.car.player.acceleration.x < 0 then left = data.car.player.acceleration.x * -1 else right = data.car.player.acceleration.x end
             if data.car.player.acceleration.z < 0 then front = data.car.player.acceleration.z * -1 else back = data.car.player.acceleration.z end
 
-            --add all the forces together and calculate the mean value (divide by 2 might be wrong but i think you cant have values in more than 2 directions at the same time)
-            --then insert them into a table and then get the hardest force value
+            --add all the forces together and calculate the mean value then insert them into a table and then get the hardest force value
             table.insert(forces, (front + back + left + right) / 2)
             local maxForce = math.max(unpack(forces))
 
@@ -470,7 +485,7 @@ function script.windowMain(dt)
         --display damage depending on state
         if data.car.damagestate > 0 and fadeDurationTimer > 0 then
             ui.setCursor(vec2(0, 0 + movePhone2))
-            ui.childWindow('DisplayDamage', vec2(302, 417), data.chat.flags, function()
+            ui.childWindow('DisplayDamage', data.appsize, data.chat.flags, function()
                 if data.car.damagestate > 1 then
                     ui.drawImage(data.src.destroyed, vecX, vecY, rgbm(1, 1, 1, ((100 / settings.fadeduration) / 100) * fadeDurationTimer), true)
                 end
@@ -483,7 +498,7 @@ function script.windowMain(dt)
 
     --draw images that need to be on top
     ui.setCursor(vec2(0, 0 + movePhone2))
-    ui.childWindow('onTopImages', vec2(300, 415), data.chat.flags, function()
+    ui.childWindow('onTopImages', data.appsize, data.chat.flags, function()
 
         --draw phone image
         ui.drawImage(data.src.phone, vecX, vecY, true)
@@ -495,12 +510,12 @@ function script.windowMain(dt)
 
         --draw glow image if enabled
         if settings.glow then
-            ui.drawImage(data.src.glow, vecX, vecY, settings.colour, true)
+            ui.drawImage(data.src.glow, vecX, vecY, data.src.color, true)
         end
     end)
 
     --chat input
-    --not affected by glare/glow because childwindows dont have clickthrough so I cant move it "below", not important just a ocd thing
+    --xtz: not affected by glare/glow because childwindows dont have clickthrough so I cant move it "below", not important just a ocd thing
     ui.setCursor(vec2(18, 306 + movePhone2))
     ui.childWindow('Chatinput', vec2(298, 32), data.chat.flags, function()
         if phoneHovered and movePhone == 0 or chatInputActive then
@@ -515,7 +530,7 @@ function script.windowMain(dt)
             chatInputActive = ui.itemActive()
             if chatInputEnter then
                 ac.sendChatMessage(chatInputString)
-                chatInputString = ''
+                ui.clearInputCharacters()
                 ui.setKeyboardFocusHere(-1)
             end
             --ui.popStyleColor()
