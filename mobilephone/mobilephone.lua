@@ -39,7 +39,6 @@ local settings = ac.storage {
     customColour = false,
     colour = rgbm(0.588873, 0.900824, 0.650712,1)
 }
---settings.colour = rgb(1,1,1)
 
 --initial spacing
 local spacetable = {}
@@ -351,7 +350,7 @@ function script.windowMain(dt)
         --move the phone but now with smootherstep
         if chatTimer <= 0 and movePhoneDown then
             movePhoneDown = true
-            movePhone = math.floor(movePhone + (dt * 100 * settings.chatmovespeed))
+            movePhone = math.floor(movePhone + dt * 100 * settings.chatmovespeed)
             movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, 328))*328)
         elseif chatTimer > 0 and movePhoneUp then
             movePhone = math.floor(movePhone - dt * 100 * settings.chatmovespeed)
@@ -524,7 +523,4 @@ function script.windowMain(dt)
             ui.drawRectFilled(vec2(20, 8), vec2(213, 30), rgbm(0.1, 0.1, 0.1, 0.66 * chatFadeTimer), 2)
         end
     end)
-    ac.debug("settings.colour", settings.colour)
-    --ac.debug("movePhoneneew", math.smootherstep(math.lerpInvSat(movePhone, 0, 328))*328)
-    --ac.debug('movePhoneUp', movePhoneUp)
 end
