@@ -239,7 +239,7 @@ function script.windowMainSettings(dt)
                 end
             end
 
-            --load saved colors if enabled and display colorpicker and save the new color 
+            --load saved colors if enabled and display colorpicker and save the new color
             --xtz: a save button might be a good idea instead of instantly overwriting the saved color on change, for now this is fine
             if settings.customcolor then
                 data.src.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
@@ -388,10 +388,10 @@ function script.windowMain(dt)
             chatTimer = settings.chattimer
         end
 
-        --if the settings gets disabled, set the phone to be placed correctly
+    --if the settings gets disabled, set the phone to be placed correctly
     elseif not settings.chatmove and movePhone ~= 0 then
         movePhone = 0
-        movePhoneUp = false
+        movePhone2 = 0
     end
 
     --set fade timer if mouse is not hovering over the app
