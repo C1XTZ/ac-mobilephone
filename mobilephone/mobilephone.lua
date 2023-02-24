@@ -35,6 +35,7 @@ local settings = ac.storage {
     chattimer = 15,
     chatmovespeed = 3,
     chatfontsize = 16,
+    chatbold = true,
     customcolor = false,
     colorR = 0.588873,
     colorG = 0.900824,
@@ -53,7 +54,7 @@ local data = {
     ['appsize'] = vec2(270, 420),
     ['padding'] = vec2(10, -21),
     ['scale'] = 1,
-    ['offset'] = 328,
+    ['offset'] = 325,
     ['src'] = {
         ['display'] = './src/img/display.png',
         ['phone'] = './src/img/phone.png',
@@ -62,6 +63,7 @@ local data = {
         ['cracked'] = './src/img/cracked.png',
         ['destroyed'] = './src/img/destroyed.png',
         ['font'] = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src'),
+        ['fontBold'] = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src'):weight(ui.DWriteFont.Weight.SemiBold),
         ['colorFlags'] = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.NoSidePreview, ui.ColorPickerFlags.NoDragDrop, ui.ColorPickerFlags.NoLabel, ui.ColorPickerFlags.DisplayRGB),
         ['color'] = rgbm(0.588873, 0.900824, 0.650712, 1)
     },
@@ -320,6 +322,11 @@ function script.windowMainSettings(dt)
             --chat fontsize
             settings.chatfontsize = ui.slider('##ChatFontSize', settings.chatfontsize, 1, 72, 'Chat Fontsize: ' .. '%.0f')
 
+            --make latest message bold
+            if ui.checkbox('Latest Message Bold', settings.chatbold) then
+                settings.chatbold = not settings.chatbold
+            end
+
             --move phone down after chat inactivity
             if ui.checkbox('Chat Inactivity', settings.chatmove) then
                 settings.chatmove = not settings.chatmove
@@ -370,17 +377,17 @@ function script.windowMain(dt)
         if chatTimer <= 0 and movePhoneDown then
             movePhoneDown = true
             movePhone = math.floor(movePhone + dt * 100 * settings.chatmovespeed)
-            movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, 328)) * 328)
+            movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, data.offset)) * data.offset)
         elseif chatTimer > 0 and movePhoneUp then
             movePhone = math.floor(movePhone - dt * 100 * settings.chatmovespeed)
-            movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, 328)) * 328)
+            movePhone2 = math.floor(math.smootherstep(math.lerpInvSat(movePhone, 0, data.offset)) * data.offset)
             --che: the entire thing doesnt work if I don't make it a new variable. I have idea why and I am far too tired to sit and work it out for another 2 hours
             --xtz: it seems to work, so im not touching it
         end
 
         --stop the phone from moving further if its in position
-        if movePhone > 328 then
-            movePhone = 328
+        if movePhone > data.offset then
+            movePhone = data.offset
             movePhoneDown = false
         elseif movePhone < 0 then
             movePhone = 0
@@ -407,7 +414,7 @@ function script.windowMain(dt)
     end
 
     --draw main display
-    ui.setCursor(vec2(0, 0 + movePhone2))
+    ui.setCursor(vec2(0, 1 + movePhone2))
     ui.childWindow("Display", data.appsize, data.chat.flags, function()
 
         --draw display image
@@ -416,27 +423,34 @@ function script.windowMain(dt)
         --draw song info if enabled
         if settings.nowplaying then
             ui.pushDWriteFont(data.src.font)
-            ui.setCursor(vec2(92, 72))
+            ui.setCursor(vec2(92, 73))
             ui.dwriteTextAligned(data.nowplaying.display, 16, -1, 0, vec2(142, 18), false, 0)
             ui.popDWriteFont()
         end
 
         --draw time
         ui.pushDWriteFont(data.src.font)
-        ui.setCursor(vec2(34, 72))
+        ui.setCursor(vec2(34, 73))
         ui.dwriteTextAligned(data.time.display, 16, 0, 0, vec2(55, 17), false, 0)
         ui.popDWriteFont()
     end)
 
     --draw chat messages
-    ui.setCursor(vec2(20, 93 + movePhone2))
+    ui.setCursor(vec2(20, 94 + movePhone2))
     ui.childWindow("Chatbox", data.chat.size, data.chat.flags, function()
         if chatcount > 0 then
             for i = 1, chatcount do
-                ui.pushDWriteFont(data.src.font)
-                ui.dwriteTextWrapped(chat[i][2] .. chat[i][1], settings.chatfontsize, 0)
-                ui.popDWriteFont()
-                ui.setScrollHereY(1)
+                if i == chatcount then
+                    if settings.chatbold then ui.pushDWriteFont(data.src.fontBold) else ui.pushDWriteFont(data.src.font) end
+                    ui.dwriteTextWrapped(chat[i][2] .. chat[i][1], settings.chatfontsize, 0)
+                    ui.popDWriteFont()
+                    ui.setScrollHereY(1)
+                else
+                    ui.pushDWriteFont(data.src.font)
+                    ui.dwriteTextWrapped(chat[i][2] .. chat[i][1], settings.chatfontsize, 0)
+                    ui.popDWriteFont()
+                    ui.setScrollHereY(1)
+                end
             end
         end
     end)
@@ -490,7 +504,7 @@ function script.windowMain(dt)
 
         --display damage depending on state
         if data.car.damagestate > 0 and fadeDurationTimer > 0 then
-            ui.setCursor(vec2(0, 0 + movePhone2))
+            ui.setCursor(vec2(0, 1 + movePhone2))
             ui.childWindow('DisplayDamage', data.appsize, data.chat.flags, function()
                 if data.car.damagestate > 1 then
                     ui.drawImage(data.src.destroyed, vecX, vecY, rgbm(1, 1, 1, ((100 / settings.fadeduration) / 100) * fadeDurationTimer), true)
@@ -503,7 +517,7 @@ function script.windowMain(dt)
     end
 
     --draw images that need to be on top
-    ui.setCursor(vec2(0, 0 + movePhone2))
+    ui.setCursor(vec2(0, 1 + movePhone2))
     ui.childWindow('onTopImages', data.appsize, data.chat.flags, function()
 
         --draw phone image
@@ -522,7 +536,7 @@ function script.windowMain(dt)
 
     --chat input
     --xtz: not affected by glare/glow because childwindows dont have clickthrough so I cant move it "below", not important just a ocd thing
-    ui.setCursor(vec2(18, 306 + movePhone2))
+    ui.setCursor(vec2(18, 307 + movePhone2))
     ui.childWindow('Chatinput', vec2(298, 32), data.chat.flags, function()
         if phoneHovered and movePhone == 0 or chatInputActive then
 
