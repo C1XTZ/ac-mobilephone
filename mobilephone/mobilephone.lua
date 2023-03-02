@@ -174,12 +174,12 @@ function UpdateSong()
             data.nowplaying.title = ac.currentlyPlaying().title
             data.nowplaying.scroll = data.nowplaying.artist .. ' - ' .. data.nowplaying.title .. data.nowplaying.spaces
             --adding some filler spaces since strings like 'ABC - DEF' are too short by themself so they would get cut by the scrolling before reaching the right edge
-            if utf8.len(phone.nowplaying.scroll) < 23 then
+            if utf8.len(data.nowplaying.scroll) < 18 then
                 local fillSpaces = {}
-                for i = 0, 23 - utf8.len(phone.nowplaying.scroll) do
+                for i = 0, 18 - utf8.len(data.nowplaying.scroll) do
                     fillSpaces[i] = ' '
                 end
-                phone.nowplaying.scroll = phone.nowplaying.artist .. ' - ' .. phone.nowplaying.title .. phone.nowplaying.spaces .. table.concat(fillSpaces)
+                data.nowplaying.scroll = data.nowplaying.artist .. ' - ' .. data.nowplaying.title .. data.nowplaying.spaces .. table.concat(fillSpaces)
             end
             data.nowplaying.length = utf8.len(data.nowplaying.scroll)
         end
@@ -544,8 +544,8 @@ function script.windowMain(dt)
 
     --chat input
     --xtz: not affected by glare/glow because childwindows dont have clickthrough so I cant move it "below", not important just a ocd thing
-    ui.setCursor(vec2(18, 307 + movePhone2))
-    ui.childWindow('Chatinput', vec2(298, 32), data.chat.flags, function()
+    ui.setCursor(vec2(15, 307 + movePhone2))
+    ui.childWindow('Chatinput', vec2(307, 38), data.chat.flags, function()
         if phoneHovered and movePhone == 0 or chatInputActive then
 
             --if enabled, stop the phone from moving down while hovering over the app or while textinput is active
@@ -563,7 +563,7 @@ function script.windowMain(dt)
             end
             --ui.popStyleColor()
         elseif chatFadeTimer > 0 then
-            ui.drawRectFilled(vec2(20, 8), vec2(213, 30), rgbm(0.1, 0.1, 0.1, 0.66 * chatFadeTimer), 2)
+            ui.drawRectFilled(vec2(20, 8), vec2(219, 30), rgbm(0.1, 0.1, 0.1, 0.66 * chatFadeTimer), 0)
         end
     end)
 end
