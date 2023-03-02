@@ -173,6 +173,14 @@ function UpdateSong()
             data.nowplaying.artist = ac.currentlyPlaying().artist
             data.nowplaying.title = ac.currentlyPlaying().title
             data.nowplaying.scroll = data.nowplaying.artist .. ' - ' .. data.nowplaying.title .. data.nowplaying.spaces
+            --adding some filler spaces since strings like 'ABC - DEF' are too short by themself so they would get cut by the scrolling before reaching the right edge
+            if utf8.len(phone.nowplaying.scroll) < 23 then
+                local fillSpaces = {}
+                for i = 0, 23 - utf8.len(phone.nowplaying.scroll) do
+                    fillSpaces[i] = ' '
+                end
+                phone.nowplaying.scroll = phone.nowplaying.artist .. ' - ' .. phone.nowplaying.title .. phone.nowplaying.spaces .. table.concat(fillSpaces)
+            end
             data.nowplaying.length = utf8.len(data.nowplaying.scroll)
         end
     elseif not ac.currentlyPlaying().isPlaying and not data.nowplaying.isPaused and settings.nowplaying then
