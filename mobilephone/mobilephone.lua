@@ -84,7 +84,7 @@ local data = {
         ['FUCK'] = false
     },
     ['chat'] = {
-        ['size'] = vec2(235, 230),
+        ['size'] = vec2(240, 230),
         ['flags'] = bit.bor(ui.WindowFlags.NoDecoration, ui.WindowFlags.NoBackground, ui.WindowFlags.NoNav, ui.WindowFlags.NoInputs)
     },
     ['car'] = {
@@ -222,13 +222,12 @@ function onShowWindow()
     RunUpdate()
 end
 
+local damageGlow = 1
 --settings window
 function script.windowMainSettings(dt)
     ui.tabBar('TabBar', function()
-
         --display settings
         ui.tabItem('Display Settings', function()
-
             --display glare toggle
             if ui.checkbox("Display Glare", settings.glare) then
                 settings.glare = not settings.glare
@@ -253,7 +252,7 @@ function script.windowMainSettings(dt)
             --xtz: a save button might be a good idea instead of instantly overwriting the saved color on change, for now this is fine
             if settings.customcolor then
                 data.src.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
-                colorChange = ui.colorPicker("Display Color Picker", data.src.color, data.src.colorFlags)
+                local colorChange = ui.colorPicker("Display Color Picker", data.src.color, data.src.colorFlags)
                 if colorChange then
                     settings.colorR, settings.colorG, settings.colorB = data.src.color.r, data.src.color.g, data.src.color.b
                 end
@@ -286,8 +285,8 @@ function script.windowMainSettings(dt)
                 --change the speed at which the songtext scrolls across
                 ui.text('\t')
                 ui.sameLine()
-                settings.scrollspeed, SPEEDCHANGE = ui.slider('##Scrollspeed', settings.scrollspeed, 0, 15, 'Scrollspeed: ' .. '%.1f')
-                if SPEEDCHANGE and not data.nowplaying.isPaused then
+                settings.scrollspeed, speedChange = ui.slider('##Scrollspeed', settings.scrollspeed, 0, 15, 'Scrollspeed: ' .. '%.1f')
+                if speedChange and not data.nowplaying.isPaused then
                     clearInterval(scrlintvl)
                     scrlintvl = nil
                     scrollText()
@@ -303,6 +302,7 @@ function script.windowMainSettings(dt)
             --display damage toggle
             if ui.checkbox("Display Screen Damage", settings.damage) then
                 settings.damage = not settings.damage
+                if not settings.damage then damageGlow = 1 end
             end
 
             --display duration and forces sliders
@@ -326,7 +326,6 @@ function script.windowMainSettings(dt)
 
         --chat settings
         ui.tabItem('Chat Settings', function()
-
             --chat fontsize
             settings.chatfontsize = ui.slider('##ChatFontSize', settings.chatfontsize, 1, 72, 'Chat Fontsize: ' .. '%.0f')
 
@@ -348,9 +347,8 @@ function script.windowMainSettings(dt)
             if settings.chatmove then
                 ui.text('\t')
                 ui.sameLine()
-                settings.chattimer, deadchatchange = ui.slider('##ChatTimer', settings.chattimer, 1, 120,
-                    'Inactivity: ' .. '%.0f seconds')
-                if deadchatchange then chatTimer = settings.chattimer end
+                settings.chattimer, inactivityChange = ui.slider('##ChatTimer', settings.chattimer, 1, 120, 'Inactivity: ' .. '%.0f seconds')
+                if inactivityChange then chatTimer = settings.chattimer end
                 ui.text('\t')
                 ui.sameLine()
                 settings.chatmovespeed = ui.slider('##MoveSpeed', settings.chatmovespeed, 1, 20, 'Speed: ' .. '%.0f')
@@ -371,10 +369,8 @@ local forces = {}
 
 --main app window
 function script.windowMain(dt)
-
     --move the phone up/down depending on chat activity
     if settings.chatmove then
-
         --countdown until moving phone
         if chatTimer > 0 and movePhone == 0 then
             chatTimer = chatTimer - dt
@@ -424,7 +420,6 @@ function script.windowMain(dt)
     --draw main display
     ui.setCursor(vec2(0, 1 + movePhone2))
     ui.childWindow("Display", data.appsize, data.chat.flags, function()
-
         --draw display image
         ui.drawImage(data.src.display, vecX, vecY, data.src.color, true)
 
@@ -444,12 +439,19 @@ function script.windowMain(dt)
     end)
 
     --draw chat messages
-    ui.setCursor(vec2(20, 94 + movePhone2))
+    ui.setCursor(vec2(17, 92 + movePhone2))
     ui.childWindow("Chatbox", data.chat.size, data.chat.flags, function()
         if chatcount > 0 then
             for i = 1, chatcount do
-                if i == chatcount then
-                    if settings.chatbold then ui.pushDWriteFont(data.src.fontBold) else ui.pushDWriteFont(data.src.font) end
+                --make the latest message bold if enabled
+                if i == chatcount and settings.chatbold then
+                    ui.pushDWriteFont(data.src.fontBold)
+                    ui.dwriteTextWrapped(chat[i][2] .. chat[i][1], settings.chatfontsize, 0)
+                    ui.popDWriteFont()
+                    ui.setScrollHereY(1)
+                --make message bold if player is mentioned (@user or user)
+                elseif string.find(string.lower(chat[i][1]), "%f[%a]" .. string.lower(ac.getDriverName(0)) .. "%f[%A]") then
+                    ui.pushDWriteFont(data.src.fontBold)
                     ui.dwriteTextWrapped(chat[i][2] .. chat[i][1], settings.chatfontsize, 0)
                     ui.popDWriteFont()
                     ui.setScrollHereY(1)
@@ -465,10 +467,8 @@ function script.windowMain(dt)
 
     --break the phone screen on impacts if enabled
     if settings.damage then
-
         --check if player colided with anything, and calculate the force
         if data.car.player.collidedWith > -1 then
-
             --reset the table for new colisions
             if data.car.damagestate < 2 then forces = {} end
 
@@ -527,7 +527,6 @@ function script.windowMain(dt)
     --draw images that need to be on top
     ui.setCursor(vec2(0, 1 + movePhone2))
     ui.childWindow('onTopImages', data.appsize, data.chat.flags, function()
-
         --draw phone image
         ui.drawImage(data.src.phone, vecX, vecY, true)
 
@@ -538,7 +537,10 @@ function script.windowMain(dt)
 
         --draw glow image if enabled
         if settings.glow then
-            ui.drawImage(data.src.glow, vecX, vecY, data.src.color, true)
+            if settings.damage and data.car.damagestate == 2 then
+                damageGlow = math.lerpInvSat(((100 / settings.fadeduration) / 100) * fadeDurationTimer, 1, 0)
+            end
+            ui.drawImage(data.src.glow, vecX, vecY, rgbm(data.src.color.r, data.src.color.g, data.src.color.b, damageGlow), true)
         end
     end)
 
@@ -547,7 +549,6 @@ function script.windowMain(dt)
     ui.setCursor(vec2(15, 307 + movePhone2))
     ui.childWindow('Chatinput', vec2(307, 38), data.chat.flags, function()
         if phoneHovered and movePhone == 0 or chatInputActive then
-
             --if enabled, stop the phone from moving down while hovering over the app or while textinput is active
             if settings.chatmove then
                 chatTimer = settings.chattimer
