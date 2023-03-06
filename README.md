@@ -1,5 +1,5 @@
 # Mobile Phone App for AC
-A oldschool phone that displays the ingame chat, time and the current song.
+A phone that displays the ingame chat, time and the current song.
 
 # License
 This repository is under the [GNU GPL v3](https://choosealicense.com/licenses/gpl-3.0/) license. What does this mean?
@@ -25,3 +25,4 @@ Any questions or suggestions feel free to message me here, on Discord or on Twit
 # Credits
 * [Nokia Cellphone FC Small](https://www.dafont.com/nokia-cellphone.font) by [Zeh Fernando](https://portfolio.zehfernando.com/)
 * [Lua 5.1 UTF-8](https://github.com/meepen/Lua-5.1-UTF-8)
+* [多亲 F22 Pro](https://www.duoqin.com/)
