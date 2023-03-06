@@ -1,5 +1,8 @@
-# Mobile Phone App for AC
-A phone that displays the ingame chat, time and the current song.
+# Mobilephone App for AC
+A Mobilephone that displays the ingame chat, time and the current song.
+
+<img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/preview.png" width="564" height="400">
+
 
 # License
 This repository is under the [GNU GPL v3](https://choosealicense.com/licenses/gpl-3.0/) license. What does this mean?
