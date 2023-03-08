@@ -142,11 +142,11 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
     --get message content and sender and add them to the table
     if ac.getDriverName(senderCarIndex) then
         chat.messages[chat.messagecount] = { message, ac.getDriverName(senderCarIndex) .. ':  ', '' }
-    elseif settings.hideKB and not ac.getDriverName(senderCarIndex) then
+    elseif settings.hideKB and senderCarIndex == -1 then
         local search = 'kicked banned'
         for msg in string.gmatch(search, '%S+') do
             --hide kick/ban messages only
-            if string.find(string.lower(message), string.lower(msg)) and not string.find(string.lower(message), 'you') then
+            if string.find(string.lower(message), '('.. string.lower(msg) .. ')') and not string.find(string.lower(message), 'you') then
                 chat.messagecount = chat.messagecount - 1
             else
                 chat.messages[chat.messagecount] = { message, '', '' }
@@ -446,7 +446,7 @@ function script.windowMain(dt)
     end)
 
     --draw chat messages
-    ui.setCursor(vec2(12, 73 + movement.smooth))
+    ui.setCursor(vec2(12, 74 + movement.smooth))
     ui.childWindow('Chatbox', chat.size, flags.window, function()
         if chat.messagecount > 0 then
             for i = 1, chat.messagecount do
