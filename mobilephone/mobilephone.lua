@@ -34,7 +34,8 @@ local settings = ac.storage {
     customcolor = false,
     colorR = 0.640,
     colorG = 1.000,
-    colorB = 0.710
+    colorB = 0.710,
+    hideKB = true,
 }
 
 --initial spacing
@@ -141,10 +142,20 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
     --get message content and sender and add them to the table
     if ac.getDriverName(senderCarIndex) then
         chat.messages[chat.messagecount] = { message, ac.getDriverName(senderCarIndex) .. ':  ', '' }
+    elseif settings.hideKB and not ac.getDriverName(senderCarIndex) then
+        local search = 'kicked banned'
+        for msg in string.gmatch(search, '%S+') do
+            --hide kick/ban messages only
+            if string.find(string.lower(message), string.lower(msg)) and not string.find(string.lower(message), 'you') then
+                chat.messagecount = chat.messagecount - 1
+            else
+                chat.messages[chat.messagecount] = { message, '', '' }
+            end
+        end
     else
         chat.messages[chat.messagecount] = { message, '', '' }
     end
-    --insert emoji if messsager sender is tagged as friend
+    --insert * if messsager sender is tagged as friend
     --xtz: im sure there is a better way but this is the easy way
     if ac.isTaggedAsFriend(ac.getDriverName(senderCarIndex)) then
         chat.messages[chat.messagecount][3] = '* '
@@ -198,7 +209,7 @@ function UpdateSong()
             end
             nowplaying.length = utf8.len(nowplaying.scroll)
         end
-    elseif not ac.currentlyPlaying().isPlaying and not nowplaying.isPaused and settings.nowplaying then
+    elseif not ac.currentlyPlaying().isPlaying and not nowplaying.isPaused and settings.nowplaying and nowplaying.artist ~= '' then
         if scrlintvl then
             clearInterval(scrlintvl)
             scrlintvl = nil
@@ -229,8 +240,7 @@ function RunUpdate()
     end, 2, 'RU')
 end
 
---xtz: this works as intended when reloading the script while already ingame because csp has already started the AcTools.CurrentlyPlaying.exe
---     when just starting the game the exe might take longer than 2s to start for whatever reason and i hate it
+--(re)start intervals and show loading nowplaying until a song is actually playing and not paused
 function onShowWindow()
     if settings.nowplaying then nowplaying.final = '     Loading...' end
     nowplaying.FUCK = true
@@ -263,14 +273,10 @@ function script.windowMainSettings(dt)
                 end
             end
             --display glare toggle
-            if ui.checkbox('Screen Glare', settings.glare) then
-                settings.glare = not settings.glare
-            end
+            if ui.checkbox('Screen Glare', settings.glare) then settings.glare = not settings.glare end
 
             --display glow toggle
-            if ui.checkbox('Screen Glow', settings.glow) then
-                settings.glow = not settings.glow
-            end
+            if ui.checkbox('Screen Glow', settings.glow) then settings.glow = not settings.glow end
 
             --nowplaying toggle
             if ui.checkbox('Show Current Song', settings.nowplaying) then
@@ -343,9 +349,10 @@ function script.windowMainSettings(dt)
             settings.chatfontsize = ui.slider('##ChatFontSize', settings.chatfontsize, 6, 36, 'Chat Fontsize: ' .. '%.0f')
 
             --make latest message bold
-            if ui.checkbox('Highlight Latest Message', settings.chatbold) then
-                settings.chatbold = not settings.chatbold
-            end
+            if ui.checkbox('Highlight Latest Message', settings.chatbold) then settings.chatbold = not settings.chatbold end
+
+            --kick ban hidding
+            if ui.checkbox('Hide Kick and Ban messages', settings.hideKB) then settings.hideKB = not settings.hideKB end
 
             --move phone down after chat inactivity
             if ui.checkbox('Chat Inactivity Minimizes Phone', settings.chatmove) then
