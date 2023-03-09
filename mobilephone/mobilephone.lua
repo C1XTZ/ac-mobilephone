@@ -134,36 +134,46 @@ end
 --chat message event handler
 ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
     chat.messagecount = chat.messagecount + 1
-    --start the countdown to move the chat if enabled
-    if settings.chatmove then
-        movement.timer = settings.chattimer
-        movement.up = true
-    end
-    --get message content and sender and add them to the table
-    if ac.getDriverName(senderCarIndex) then
+    local hideMessage = false
+    --check if the message came from a player or a server
+    if senderCarIndex > -1 then
+        --start the countdown to move the chat if enabled
+        if settings.chatmove then
+            movement.timer = settings.chattimer
+            movement.up = true
+        end
+        --player messages just get sent
         chat.messages[chat.messagecount] = { message, ac.getDriverName(senderCarIndex) .. ':  ', '' }
-    elseif settings.hideKB and senderCarIndex == -1 then
-        local search = 'kicked banned'
-        for msg in string.gmatch(search, '%S+') do
-            --hide kick/ban messages only
-            if string.find(string.lower(message), '('.. string.lower(msg) .. ')') and not string.find(string.lower(message), 'you') then
-                chat.messagecount = chat.messagecount - 1
-            else
-                chat.messages[chat.messagecount] = { message, '', '' }
-            end
+        --insert * if messsager sender is tagged as friend
+        if ac.isTaggedAsFriend(ac.getDriverName(senderCarIndex)) then
+            chat.messages[chat.messagecount][3] = '* '
         end
     else
-        chat.messages[chat.messagecount] = { message, '', '' }
-    end
-    --insert * if messsager sender is tagged as friend
-    --xtz: im sure there is a better way but this is the easy way
-    if ac.isTaggedAsFriend(ac.getDriverName(senderCarIndex)) then
-        chat.messages[chat.messagecount][3] = '* '
-    end
-    --only keep the 25 latest messages
-    if table.getn(chat.messages) > 25 then
-        table.remove(chat.messages, 1)
-        chat.messagecount = table.getn(chat.messages)
+        --check message content for these keywords if hide kick/bans is enabled
+        if settings.hideKB then
+            local search = 'kicked banned'
+            for msg in string.gmatch(search, '%S+') do
+                --hide the message if a keyword has been found in the message and it doesnt containt "you" (so it doesnt hide alerts targeted at the player like "Please turn on your lights or you will be kicked.")
+                if string.find(string.lower(message), '(' .. string.lower(msg) .. ')') and not string.find(string.lower(message), '(you)') then
+                    hideMessage = true
+                end
+            end
+        end
+        --send server message without a username if its not supposed to be hidden, otherwise remove message from table
+        if not hideMessage then
+            if settings.chatmove then
+                movement.timer = settings.chattimer
+                movement.up = true
+            end
+            chat.messages[chat.messagecount] = { message, '', '' }
+        else
+            chat.messagecount = chat.messagecount - 1
+        end
+        --only keep the 25 latest messages
+        if table.getn(chat.messages) > 25 then
+            table.remove(chat.messages, 1)
+            chat.messagecount = table.getn(chat.messages)
+        end
     end
 end)
 
