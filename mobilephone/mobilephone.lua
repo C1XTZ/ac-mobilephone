@@ -153,13 +153,13 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
         if settings.hideKB then
             local search = 'kicked banned'
             for msg in string.gmatch(search, '%S+') do
-                --hide the message if a keyword has been found in the message and it doesnt containt "you" (so it doesnt hide alerts targeted at the player like "Please turn on your lights or you will be kicked.")
-                if string.find(string.lower(message), '(' .. string.lower(msg) .. ')') and not string.find(string.lower(message), '(you)') then
+                --hide the message if a keyword has been found in the message and it doesnt contain 'you' so it doesnt hide alerts targeted at the player (hopefully)
+                if string.find(string.lower(message), '(' .. string.lower(msg) .. ')') and not string.find(string.lower(message), '%f[%a_](you)%f[%A_]') then
                     hideMessage = true
                 end
             end
         end
-        --send server message without a username if its not supposed to be hidden, otherwise remove message from table
+        --send server message without a username if its not supposed to be hidden, otherwise remove it from the messagecount
         if not hideMessage then
             if settings.chatmove then
                 movement.timer = settings.chattimer
