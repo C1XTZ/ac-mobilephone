@@ -36,6 +36,8 @@ local settings = ac.storage {
     colorG = 1.000,
     colorB = 0.710,
     hideKB = true,
+    notifsound = true,
+    notifvol = 5,
 }
 
 --initial spacing
@@ -102,6 +104,11 @@ local nowplaying = {
     ['FUCK'] = false,
 }
 
+local notification = {
+    ['sound'] = ui.MediaPlayer():setSource('notif.mp3'):setVolume(0.01 * settings.notifvol):setAutoPlay(false):setLooping(false),
+    ['allow'] = false,
+}
+
 --car data
 local car = {
     ['player'] = ac.getCar(0),
@@ -142,6 +149,8 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
             movement.timer = settings.chattimer
             movement.up = true
         end
+        --allow notification to play if enabled and player is mentioned
+        if settings.notifsound and string.find(string.lower(message), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then notification.allow = true end
         --player messages just get sent
         chat.messages[chat.messagecount] = { message, ac.getDriverName(senderCarIndex) .. ':  ', '' }
         --insert * if messsager sender is tagged as friend
@@ -153,9 +162,14 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
         if settings.hideKB then
             local search = 'kicked banned'
             for msg in string.gmatch(search, '%S+') do
-                --hide the message if a keyword has been found in the message and it doesnt contain 'you' so it doesnt hide alerts targeted at the player (hopefully)
-                if string.find(string.lower(message), '(' .. string.lower(msg) .. ')') and not string.find(string.lower(message), '%f[%a_](you)%f[%A_]') then
-                    hideMessage = true
+                --hide the message if a keyword has been found in the message and doesnt contain 'you' so it doesnt hide server messages targeted at the player
+                if string.find(string.lower(message), '(' .. string.lower(msg) .. ')') then
+                    if not string.find(string.lower(message), '%f[%a_](you)%f[%A_]') then
+                        hideMessage = true
+                    else
+                        --play notification sound when server message is targeted at the player
+                        notification.allow = true
+                    end
                 end
             end
         end
@@ -208,7 +222,7 @@ function UpdateSong()
             nowplaying.FUCK = false
             nowplaying.artist = ac.currentlyPlaying().artist
             nowplaying.title = ac.currentlyPlaying().title
-            --tested a song without metadata tags on Groove Music and Dopamine, both set artist to Unkown Artist and used the filename (artist - songname.mp3) as the title
+            --tested a song without metadata tags on Groove Music and Dopamine, both set artist to Unknown Artist and used the filename (artist - songname.mp3) as the title
             --might not work the same on every single music player but this should cover most of them
             if string.lower(nowplaying.artist) == 'unknown artist' then
                 nowplaying.scroll = nowplaying.title .. nowplaying.spaces
@@ -364,6 +378,15 @@ function script.windowMainSettings(dt)
             --chat fontsize
             settings.chatfontsize = ui.slider('##ChatFontSize', settings.chatfontsize, 6, 36, 'Chat Fontsize: ' .. '%.0f')
 
+            --notification sound when player is tagged in a message
+            if ui.checkbox('Play notification sound when tagged', settings.notifsound) then settings.notifsound = not settings.notifsound end
+            if settings.notifsound then
+                ui.text('\t')
+                ui.sameLine()
+                settings.notifvol, volumeChange = ui.slider('##SoundVolume', settings.notifvol, 1, 100, 'Sound Volume: ' .. '%.0f' .. '%')
+                if volumeChange then notification.sound:setVolume(0.01 * settings.notifvol):play() end
+            end
+
             --make latest message bold
             if ui.checkbox('Highlight Latest Message', settings.chatbold) then settings.chatbold = not settings.chatbold end
 
@@ -439,6 +462,18 @@ function script.windowMain(dt)
         chat.inputfade = 1
     elseif chat.inputfade > 0 then
         chat.inputfade = chat.inputfade - dt
+    end
+
+    --play notification sound when allowed to and enabled
+    if settings.notifsound then
+        if notification.sound:playing() and notification.sound:ended() then notification.sound:pause() end
+        if notification.allow and not notification.sound:playing() then
+            notification.sound:play()
+            notification.allow = false
+        else
+            --dont allow playing if the sound is already playing to prevent spam a little
+            notification.allow = false
+        end
     end
 
     --draw display
