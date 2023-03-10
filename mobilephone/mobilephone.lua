@@ -208,14 +208,20 @@ function UpdateSong()
             nowplaying.FUCK = false
             nowplaying.artist = ac.currentlyPlaying().artist
             nowplaying.title = ac.currentlyPlaying().title
-            nowplaying.scroll = nowplaying.artist .. ' - ' .. nowplaying.title .. nowplaying.spaces
+            --tested a song without metadata tags on Groove Music and Dopamine, both set artist to Unkown Artist and used the filename (artist - songname.mp3) as the title
+            --might not work the same on every single music player but this should cover most of them
+            if string.lower(nowplaying.artist) == 'unknown artist' then
+                nowplaying.scroll = nowplaying.title .. nowplaying.spaces
+            else
+                nowplaying.scroll = nowplaying.artist .. ' - ' .. nowplaying.title .. nowplaying.spaces
+            end
             --adding some filler spaces since strings like 'ABC - DEF' are too short by themself so they would get cut by the scrolling before reaching the right edge
             if utf8.len(nowplaying.scroll) < 19 then
                 local fillSpaces = {}
                 for i = 0, 19 - utf8.len(nowplaying.scroll) do
                     fillSpaces[i] = ' '
                 end
-                nowplaying.scroll = nowplaying.artist .. ' - ' .. nowplaying.title .. nowplaying.spaces .. table.concat(fillSpaces)
+                nowplaying.scroll = nowplaying.scroll .. table.concat(fillSpaces)
             end
             nowplaying.length = utf8.len(nowplaying.scroll)
         end
