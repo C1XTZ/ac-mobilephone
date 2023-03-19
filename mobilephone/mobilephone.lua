@@ -133,6 +133,11 @@ local flags = {
     ['color'] = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.NoSidePreview, ui.ColorPickerFlags.NoDragDrop, ui.ColorPickerFlags.NoLabel, ui.ColorPickerFlags.DisplayRGB),
 }
 
+--emojis
+local Emojis = {
+    ["txt"] = { "%(angel%)", "%(angry%)", "%(anguish%)", "%(clown%)", "%(confused%)", "%(cool%)", "%(crying%)", "%(curious%)", "%(dead%)", "%(devil%)", "%(dislike%)", "%(dissapointed%)", "%(down%)", "%(flipped%)", "%(friendly%)", "%(ghost%)", "%(greedy%)", "%(grimacing%)", "%(grinning%)", "%(heart%)", "%(injury%)", "%(inlove%)", "%(joy%)", "%(kiss%)", "%(laughing%)", "%(like%)", "%(mad%)", "%(muted%)", "%(nerd%)", "%(neutral%)", "%(ninja%)", "%(poo%)", "%(puking%)", "%(sad%)", "%(scared%)", "%(shocked%)", "%(sick%)", "%(silent%)", "%(sleeping%)", "%(smiling%)", "%(sweating%)", "%(tired%)", "%(tongue%)", "%(up%)", "%(vomiting%)", "%(wink%)", "%(yeehaw%)", "%(yeehawnt%)" },
+    ["uni"] = { "😇", "😤", "😫", "🤡", "😕", "😎", "😭", "🧐", "😵", "😈", "👎", "😓", "👇", "🙃", "😊", "👻", "🤑", "😬", "😀", "❤️", "🤕", "😍", "😂", "😘", "😆", "👍", "😡", "🤐", "🤓", "😐", "🤫", "💩", "🤢", "☹️", "😖", "😲", "😷", "🤐", "😴", "🙂", "😓", "😔", "😋", "☝️", "🤮", "😉", "🤠", "🤠" }
+}
 --use saved color instead if enabled
 if settings.customcolor then
     phone.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
@@ -141,6 +146,12 @@ end
 --chat message event handler
 ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
     chat.messagecount = chat.messagecount + 1
+    --emoji parsing
+    for i = 1, table.getn(Emojis.txt) do
+        if string.find(message, Emojis.txt[i]) then
+            message = string.gsub(message, Emojis.txt[i], Emojis.uni[i])
+        end
+    end
     local hideMessage = false
     --check if the message came from a player or a server
     if senderCarIndex > -1 then
