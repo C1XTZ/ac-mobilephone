@@ -1,7 +1,7 @@
 # Mobilephone App for AC
 A Mobilephone that displays the ingame chat, time and the current song.
 
-<img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/preview.png" width="564" height="400">
+<img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/preview.png">
 
 
 # License
@@ -15,7 +15,7 @@ This repository is under the [GNU GPL v3](https://choosealicense.com/licenses/gp
 ### What you are required to do:
 * Make the source code public (which means you cannot obfuscate the code in any way)
 * Maintain the same license for any forks/modifications you do
-* State what you have changed (this includes a simple "I changed the links and numbers")
+* State what you have changed (this includes a simple "I changed the images and numbers")
 
 ### What you don't get:
 * Liability
@@ -26,6 +26,7 @@ This may seem like a lot, but the general gist is: if you're going to use it, ma
 Any questions or suggestions feel free to message me here, on Discord or on Twitter. You'll find me under XTZ#3177 and [@C1XTZ](https://twitter.com/C1XTZ) respectively.
 
 # Credits
-* [Nokia Cellphone FC Small](https://www.dafont.com/nokia-cellphone.font) by [Zeh Fernando](https://portfolio.zehfernando.com/)
+* [Nokia Cellphone FC Small](https://www.dafont.com/nokia-cellphone.font)
+* [Nokia Mono Tone](https://www.zedge.net/ringtone/9ad5a2fd-9e90-3d4c-a4c6-8bf0b4158dc8)
 * [Lua 5.1 UTF-8](https://github.com/meepen/Lua-5.1-UTF-8)
 * [多亲 F22 Pro](https://www.duoqin.com/)

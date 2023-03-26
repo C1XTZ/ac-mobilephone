@@ -1,7 +1,7 @@
 --made by XTZ, CheesyManiac
 
 --xtz: im sure this does something
---che: you dont really need this since you're loading only a few images at the start, but if you add the map then it'll be vital
+--che: you dont really need this since you're loading only a few images at the start
 ui.setAsynchronousImagesLoading(true)
 
 --adding this so unicode characters like kanji dont break while scrolling
