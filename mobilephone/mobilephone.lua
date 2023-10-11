@@ -164,14 +164,14 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
         if settings.notifsound and string.find(string.lower(message), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then notification.allow = true end
         --player messages just get sent
         chat.messages[chat.messagecount] = { message, ac.getDriverName(senderCarIndex) .. ':  ', '' }
-        --insert * if messsager sender is tagged as friend
-        if ac.isTaggedAsFriend(ac.getDriverName(senderCarIndex)) then
+        --insert * if messsage sender is tagged as friend
+        if ac.DriverTags(ac.getDriverName(senderCarIndex)).friend then
             chat.messages[chat.messagecount][3] = '* '
         end
     else
         --check message content for these keywords if hide kick/bans is enabled
         if settings.hideKB then
-            local search = 'kicked banned'
+            local search = 'kicked banned checksums'
             for msg in string.gmatch(search, '%S+') do
                 --hide the message if a keyword has been found in the message and doesnt contain 'you' so it doesnt hide server messages targeted at the player
                 if string.find(string.lower(message), '(' .. string.lower(msg) .. ')') then
