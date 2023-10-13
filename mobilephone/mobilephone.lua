@@ -36,6 +36,7 @@ local settings = ac.storage {
     colorG = 1.000,
     colorB = 0.710,
     hideKB = true,
+    hideAnnoy = true,
     notifsound = true,
     notifvol = 5,
 }
@@ -155,11 +156,6 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
     local hideMessage = false
     --check if the message came from a player or a server
     if senderCarIndex > -1 then
-        --start the countdown to move the chat if enabled
-        if settings.chatmove then
-            movement.timer = settings.chattimer
-            movement.up = true
-        end
         --allow notification to play if enabled and player is mentioned
         if settings.notifsound and string.find(string.lower(message), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then notification.allow = true end
         --player messages just get sent
@@ -167,6 +163,25 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
         --insert * if messsage sender is tagged as friend
         if ac.DriverTags(ac.getDriverName(senderCarIndex)).friend then
             chat.messages[chat.messagecount][3] = '* '
+        end
+
+        --find and hide annoying app messages otherwise continue on
+        if settings.hideAnnoy then
+            local annoying = 'RP: PLP:'
+            for msg in string.gmatch(annoying, '%S+') do
+                if string.find(string.lower(message), '^(' .. string.lower(msg) .. ')') then
+                    hideMessage = true
+                end
+            end
+        end
+        --if message is not hidden and moving is enabled, start the countdown to move
+        if not hideMessage then
+            if settings.chatmove then
+                movement.timer = settings.chattimer
+                movement.up = true
+            end
+        else --remove message
+            chat.messagecount = chat.messagecount - 1
         end
     else
         --check message content for these keywords if hide kick/bans is enabled
@@ -345,7 +360,7 @@ function script.windowMainSettings(dt)
                 --change the speed at which the songtext scrolls across
                 ui.text('\t')
                 ui.sameLine()
-                settings.scrollspeed, speedChange = ui.slider('##ScrollSpeed', settings.scrollspeed, 0, 15, 'Scrollspeed: ' .. '%.1f')
+                settings.scrollspeed, speedChange = ui.slider('##ScrollSpeed', settings.scrollspeed, 0, 15, 'Scroll Speed: ' .. '%.1f')
                 if speedChange and not nowplaying.isPaused then
                     clearInterval(scrlintvl)
                     scrlintvl = nil
@@ -389,8 +404,8 @@ function script.windowMainSettings(dt)
             --chat fontsize
             settings.chatfontsize = ui.slider('##ChatFontSize', settings.chatfontsize, 6, 36, 'Chat Fontsize: ' .. '%.0f')
 
-            --notification sound when player is tagged in a message
-            if ui.checkbox('Play notification sound when tagged', settings.notifsound) then settings.notifsound = not settings.notifsound end
+            --notification sound when player is mentioned in a message
+            if ui.checkbox('Play Notification Sound when Mentioned', settings.notifsound) then settings.notifsound = not settings.notifsound end
             if settings.notifsound then
                 ui.text('\t')
                 ui.sameLine()
@@ -402,7 +417,10 @@ function script.windowMainSettings(dt)
             if ui.checkbox('Highlight Latest Message', settings.chatbold) then settings.chatbold = not settings.chatbold end
 
             --kick ban hidding
-            if ui.checkbox('Hide Kick and Ban messages', settings.hideKB) then settings.hideKB = not settings.hideKB end
+            if ui.checkbox('Hide Kick and Ban Messages', settings.hideKB) then settings.hideKB = not settings.hideKB end
+
+            --real penalty and pit lane penalty message hiding?
+            if ui.checkbox('Hide Annoying App Messages', settings.hideAnnoy) then settings.hideAnnoy = not settings.hideAnnoy end
 
             --move phone down after chat inactivity
             if ui.checkbox('Chat Inactivity Minimizes Phone', settings.chatmove) then
