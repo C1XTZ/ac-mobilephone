@@ -167,7 +167,7 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
 
         --find and hide annoying app messages otherwise continue on
         if settings.hideAnnoy then
-            local annoying = 'RP: PLP:'
+            local annoying = 'RP: PLP: ACP: D&O DRIFT-STRUCTION'
             for msg in string.gmatch(annoying, '%S+') do
                 if string.find(string.lower(message), '^(' .. string.lower(msg) .. ')') then
                     hideMessage = true
