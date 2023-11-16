@@ -39,6 +39,10 @@ local settings = ac.storage {
     hideAnnoy = true,
     notifsound = true,
     notifvol = 5,
+    joinnotif = true,
+    joinnotifsound = false,
+    joinnotiffriends = true,
+    joinnotifsoundfriends = false,
 }
 
 --initial spacing
@@ -139,6 +143,7 @@ local Emojis = {
     ["txt"] = { "%(angel%)", "%(angry%)", "%(anguish%)", "%(clown%)", "%(confused%)", "%(cool%)", "%(crying%)", "%(curious%)", "%(dead%)", "%(devil%)", "%(dislike%)", "%(dissapointed%)", "%(down%)", "%(flipped%)", "%(friendly%)", "%(ghost%)", "%(greedy%)", "%(grimacing%)", "%(grinning%)", "%(heart%)", "%(injury%)", "%(inlove%)", "%(joy%)", "%(kiss%)", "%(laughing%)", "%(like%)", "%(mad%)", "%(muted%)", "%(nerd%)", "%(neutral%)", "%(ninja%)", "%(poo%)", "%(puking%)", "%(sad%)", "%(scared%)", "%(shocked%)", "%(sick%)", "%(silent%)", "%(sleeping%)", "%(smiling%)", "%(sweating%)", "%(tired%)", "%(tongue%)", "%(up%)", "%(vomiting%)", "%(wink%)", "%(yeehaw%)", "%(yeehawnt%)" },
     ["uni"] = { "😇", "😤", "😫", "🤡", "😕", "😎", "😭", "🧐", "😵", "😈", "👎", "😓", "👇", "🙃", "😊", "👻", "🤑", "😬", "😀", "❤️", "🤕", "😍", "😂", "😘", "😆", "👍", "😡", "🤐", "🤓", "😐", "🤫", "💩", "🤢", "☹️", "😖", "😲", "😷", "🤐", "😴", "🙂", "😓", "😔", "😋", "☝️", "🤮", "😉", "🤠", "🤠" }
 }
+
 --use saved color instead if enabled
 if settings.customcolor then
     phone.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
@@ -159,15 +164,14 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
         --allow notification to play if enabled and player is mentioned
         if settings.notifsound and string.find(string.lower(message), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then notification.allow = true end
         --player messages just get sent
-        chat.messages[chat.messagecount] = { message, ac.getDriverName(senderCarIndex) .. ':  ', '' }
+        chat.messages[chat.messagecount] = { message, ac.getDriverName(senderCarIndex) .. ': ', '' }
         --insert * if messsage sender is tagged as friend
         if ac.DriverTags(ac.getDriverName(senderCarIndex)).friend then
             chat.messages[chat.messagecount][3] = '* '
         end
-
         --find and hide annoying app messages otherwise continue on
         if settings.hideAnnoy then
-            local annoying = 'RP: PLP: ACP: D&O DRIFT-STRUCTION'
+            local annoying = 'RP: PLP: ACP: D&O DRIFT-STRUCTION OSRW'
             for msg in string.gmatch(annoying, '%S+') do
                 if string.find(string.lower(message), '^(' .. string.lower(msg) .. ')') then
                     hideMessage = true
@@ -216,6 +220,56 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
         end
     end
 end)
+
+--display join/leave messages
+if settings.joinnotif then
+    ac.onClientConnected(function(connectedCarIndex)
+        chat.messagecount = chat.messagecount + 1
+        chat.messages[chat.messagecount] = { 'joined the Server', ac.getDriverName(connectedCarIndex) .. ' ', '' }
+        if settings.joinnotiffriends and not ac.DriverTags(ac.getDriverName(connectedCarIndex)).friend then
+            chat.messagecount = chat.messagecount - 1
+        else
+            if ac.DriverTags(ac.getDriverName(connectedCarIndex)).friend then
+                chat.messages[chat.messagecount][3] = '* '
+
+                if settings.joinnotifsound then
+                    notification.allow = true
+                end
+            end
+            if settings.chatmove then
+                movement.timer = settings.chattimer
+                movement.up = true
+            end
+
+            if settings.joinnotifsound and not settings.joinnotifsoundfriends then
+                notification.allow = true
+            end
+        end
+    end)
+
+    ac.onClientDisconnected(function(connectedCarIndex)
+        chat.messagecount = chat.messagecount + 1
+        chat.messages[chat.messagecount] = { 'left the Server', ac.getDriverName(connectedCarIndex) .. ' ', '' }
+        if settings.joinnotiffriends and not ac.DriverTags(ac.getDriverName(connectedCarIndex)).friend then
+            chat.messagecount = chat.messagecount - 1
+        else
+            if ac.DriverTags(ac.getDriverName(connectedCarIndex)).friend then
+                chat.messages[chat.messagecount][3] = '* '
+
+                if settings.joinnotifsound then
+                    notification.allow = true
+                end
+            end
+            if settings.chatmove then
+                movement.timer = settings.chattimer
+                movement.up = true
+            end
+            if settings.joinnotifsound and not settings.joinnotifsoundfriends then
+                notification.allow = true
+            end
+        end
+    end)
+end
 
 --scrolling text
 local scrlintvl
@@ -318,7 +372,6 @@ function script.windowMainSettings(dt)
                 end
             end
             --load saved colors if enabled and display colorpicker and save the new color
-            --xtz: a save button might be a good idea instead of instantly overwriting the saved color on change, for now this is fine
             if settings.customcolor then
                 ui.text('\t')
                 ui.sameLine()
@@ -328,6 +381,7 @@ function script.windowMainSettings(dt)
                     settings.colorR, settings.colorG, settings.colorB = phone.color.r, phone.color.g, phone.color.b
                 end
             end
+
             --display glare toggle
             if ui.checkbox('Screen Glare', settings.glare) then settings.glare = not settings.glare end
 
@@ -402,11 +456,30 @@ function script.windowMainSettings(dt)
         --chat settings
         ui.tabItem('Chat', function()
             --chat fontsize
+            ui.text('\t')
+            ui.sameLine()
             settings.chatfontsize = ui.slider('##ChatFontSize', settings.chatfontsize, 6, 36, 'Chat Fontsize: ' .. '%.0f')
+
+            if ui.checkbox('Show Join/Leave Messages', settings.joinnotif) then settings.joinnotif = not settings.joinnotif end
+            if settings.joinnotif then
+                ui.text('\t')
+                ui.sameLine()
+                if ui.checkbox('Friends Only', settings.joinnotiffriends) then settings.joinnotiffriends = not settings.joinnotiffriends end
+                ui.text('\t')
+                ui.sameLine()
+                if ui.checkbox('Play Notification Sound', settings.joinnotifsound) then settings.joinnotifsound = not settings.joinnotifsound end
+                if settings.joinnotifsound then
+                    ui.text('\t')
+                    ui.sameLine()
+                    ui.text('\t')
+                    ui.sameLine()
+                    if ui.checkbox('Only for Friends', settings.joinnotifsoundfriends) then settings.joinnotifsoundfriends = not settings.joinnotifsoundfriends end
+                end
+            end
 
             --notification sound when player is mentioned in a message
             if ui.checkbox('Play Notification Sound when Mentioned', settings.notifsound) then settings.notifsound = not settings.notifsound end
-            if settings.notifsound then
+            if settings.notifsound or settings.joinnotifsound then
                 ui.text('\t')
                 ui.sameLine()
                 settings.notifvol, volumeChange = ui.slider('##SoundVolume', settings.notifvol, 1, 100, 'Sound Volume: ' .. '%.0f' .. '%')
@@ -494,7 +567,7 @@ function script.windowMain(dt)
     end
 
     --play notification sound when allowed to and enabled
-    if settings.notifsound then
+    if settings.notifsound or settings.joinnotifsound then
         if notification.sound:playing() and notification.sound:ended() then notification.sound:pause() end
         if notification.allow and not notification.sound:playing() then
             notification.sound:play()
