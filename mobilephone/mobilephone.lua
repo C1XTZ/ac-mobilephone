@@ -37,7 +37,7 @@ local settings = ac.storage {
     colorB = 0.710,
     hideKB = true,
     hideAnnoy = true,
-    notifsound = true,
+    notifsound = false,
     notifvol = 5,
     joinnotif = true,
     joinnotifsound = false,
@@ -71,11 +71,11 @@ local phone = {
         ['fontBold'] = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src'):weight(ui.DWriteFont.Weight.SemiBold),
     },
     ['size'] = vec2(245, 409),
-    ['color'] = rgbm(0.640, 1.0, 0.710, 1),
+    ['color'] = rgbm(0.64, 1.0, 0.71, 1),
 }
 
 local chat = {
-    ['size'] = vec2(245, 290),
+    ['size'] = vec2(245, 294),
     ['messages'] = {},
     ['messagecount'] = 0,
     ['activeinput'] = false,
@@ -149,6 +149,14 @@ if settings.customcolor then
     phone.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
 end
 
+function checkIfFriend(carIndex)
+    if ac.getPatchVersionCode() > 2144 then
+        return ac.DriverTags(ac.getDriverName(carIndex)).friend
+    else
+        return ac.isTaggedAsFriend(ac.getDriverName(carIndex))
+    end
+end
+
 --chat message event handler
 ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
     chat.messagecount = chat.messagecount + 1
@@ -166,7 +174,7 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
         --player messages just get sent
         chat.messages[chat.messagecount] = { message, ac.getDriverName(senderCarIndex) .. ': ', '' }
         --insert * if messsage sender is tagged as friend
-        if ac.DriverTags(ac.getDriverName(senderCarIndex)).friend then
+        if checkIfFriend(senderCarIndex) then
             chat.messages[chat.messagecount][3] = '* '
         end
         --find and hide annoying app messages otherwise continue on
@@ -185,6 +193,7 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
                 movement.up = true
             end
         else --remove message
+            chat.messages[chat.messagecount] = nil
             chat.messagecount = chat.messagecount - 1
         end
     else
@@ -211,6 +220,7 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
             end
             chat.messages[chat.messagecount] = { message, '', '' }
         else
+            chat.messages[chat.messagecount] = nil
             chat.messagecount = chat.messagecount - 1
         end
         --only keep the 25 latest messages
@@ -226,10 +236,11 @@ if settings.joinnotif then
     ac.onClientConnected(function(connectedCarIndex)
         chat.messagecount = chat.messagecount + 1
         chat.messages[chat.messagecount] = { 'joined the Server', ac.getDriverName(connectedCarIndex) .. ' ', '' }
-        if settings.joinnotiffriends and not ac.DriverTags(ac.getDriverName(connectedCarIndex)).friend then
+        if settings.joinnotiffriends and not checkIfFriend(connectedCarIndex) then
+            chat.messages[chat.messagecount] = nil
             chat.messagecount = chat.messagecount - 1
         else
-            if ac.DriverTags(ac.getDriverName(connectedCarIndex)).friend then
+            if checkIfFriend(connectedCarIndex) then
                 chat.messages[chat.messagecount][3] = '* '
 
                 if settings.joinnotifsound then
@@ -250,10 +261,11 @@ if settings.joinnotif then
     ac.onClientDisconnected(function(connectedCarIndex)
         chat.messagecount = chat.messagecount + 1
         chat.messages[chat.messagecount] = { 'left the Server', ac.getDriverName(connectedCarIndex) .. ' ', '' }
-        if settings.joinnotiffriends and not ac.DriverTags(ac.getDriverName(connectedCarIndex)).friend then
+        if settings.joinnotiffriends and not checkIfFriend(connectedCarIndex) then
+            chat.messages[chat.messagecount] = nil
             chat.messagecount = chat.messagecount - 1
         else
-            if ac.DriverTags(ac.getDriverName(connectedCarIndex)).friend then
+            if checkIfFriend(connectedCarIndex) then
                 chat.messages[chat.messagecount][3] = '* '
 
                 if settings.joinnotifsound then
@@ -599,7 +611,7 @@ function script.windowMain(dt)
     end)
 
     --draw chat messages
-    ui.setCursor(vec2(12, 74 + movement.smooth))
+    ui.setCursor(vec2(12, 72 + movement.smooth))
     ui.childWindow('Chatbox', chat.size, flags.window, function()
         if chat.messagecount > 0 then
             for i = 1, chat.messagecount do
