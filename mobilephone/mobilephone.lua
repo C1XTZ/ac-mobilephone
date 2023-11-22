@@ -83,7 +83,7 @@ local chat = {
 }
 
 local movement = {
-    ['maxdistance'] = 355,
+    ['maxdistance'] = 357,
     ['timer'] = settings.chattimer,
     ['down'] = true,
     ['up'] = false,
