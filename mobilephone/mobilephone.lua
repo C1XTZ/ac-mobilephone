@@ -75,7 +75,7 @@ local phone = {
 }
 
 local chat = {
-    ['size'] = vec2(245, 294),
+    ['size'] = vec2(245, 290),
     ['messages'] = {},
     ['messagecount'] = 0,
     ['activeinput'] = false,
@@ -83,7 +83,7 @@ local chat = {
 }
 
 local movement = {
-    ['maxdistance'] = 357,
+    ['maxdistance'] = 355,
     ['timer'] = settings.chattimer,
     ['down'] = true,
     ['up'] = false,
@@ -611,7 +611,7 @@ function script.windowMain(dt)
     end)
 
     --draw chat messages
-    ui.setCursor(vec2(12, 72 + movement.smooth))
+    ui.setCursor(vec2(12, 74 + movement.smooth))
     ui.childWindow('Chatbox', chat.size, flags.window, function()
         if chat.messagecount > 0 then
             for i = 1, chat.messagecount do
