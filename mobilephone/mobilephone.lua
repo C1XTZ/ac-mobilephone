@@ -48,7 +48,7 @@ local settings = ac.storage {
 --initial spacing
 local spacetable = {}
 for i = 0, settings.spaces + 1 do
-    spacetable[i] = ' '
+    spacetable[i] = ' '
 end
 
 --app data
@@ -83,7 +83,7 @@ local chat = {
 }
 
 local movement = {
-    ['maxdistance'] = 355,
+    ['maxdistance'] = 356,
     ['timer'] = settings.chattimer,
     ['down'] = true,
     ['up'] = false,
@@ -103,7 +103,7 @@ local nowplaying = {
     ['scroll'] = '',
     ['final'] = '',
     ['length'] = 0,
-    ['pstr'] = '     PAUSE ll',
+    ['pstr'] = '    PAUSE ll',
     ['isPaused'] = false,
     ['spaces'] = table.concat(spacetable),
     ['FUCK'] = false,
@@ -287,7 +287,7 @@ end
 function UpdateSpacing()
     spacetable = {}
     for i = 0, settings.spaces + 1 do
-        spacetable[i] = ' '
+        spacetable[i] = ' '
     end
     nowplaying.spaces = table.concat(spacetable)
     nowplaying.FUCK = true
@@ -352,7 +352,7 @@ end
 
 --(re)start intervals and show loading nowplaying until a song is actually playing and not paused
 function onShowWindow()
-    if settings.nowplaying then nowplaying.final = '     Loading...' end
+    if settings.nowplaying then nowplaying.final = '   LOADING...' end
     nowplaying.FUCK = true
     nowplaying.isPaused = false
     UpdateTime()
@@ -473,7 +473,7 @@ function script.windowMainSettings(dt)
                     ui.sameLine()
                     ui.text('\t')
                     ui.sameLine()
-                    if ui.checkbox('Only for Friends', settings.joinnotifsoundfriends) then settings.joinnotifsoundfriends = not settings.joinnotifsoundfriends end
+                    if ui.checkbox('Friends Only', settings.joinnotifsoundfriends) then settings.joinnotifsoundfriends = not settings.joinnotifsoundfriends end
                 end
             end
 
