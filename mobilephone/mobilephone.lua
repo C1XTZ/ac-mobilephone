@@ -191,7 +191,7 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
                 movement.up = true
             end
         else --remove message
-            table.remove(chat.messages)
+            chat.messages[chat.messagecount] = nil
             chat.messagecount = chat.messagecount - 1
         end
     else
@@ -218,7 +218,7 @@ ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
             end
             chat.messages[chat.messagecount] = { message, '', '' }
         else
-            table.remove(chat.messages)
+            chat.messages[chat.messagecount] = nil
             chat.messagecount = chat.messagecount - 1
         end
         --only keep the 25 latest messages
@@ -235,7 +235,7 @@ if settings.joinnotif then
         chat.messagecount = chat.messagecount + 1
         chat.messages[chat.messagecount] = { 'joined the Server', ac.getDriverName(connectedCarIndex) .. ' ', '' }
         if settings.joinnotiffriends and not checkIfFriend(connectedCarIndex) then
-            table.remove(chat.messages)
+            chat.messages[chat.messagecount] = nil
             chat.messagecount = chat.messagecount - 1
         else
             if checkIfFriend(connectedCarIndex) then
@@ -260,7 +260,7 @@ if settings.joinnotif then
         chat.messagecount = chat.messagecount + 1
         chat.messages[chat.messagecount] = { 'left the Server', ac.getDriverName(connectedCarIndex) .. ' ', '' }
         if settings.joinnotiffriends and not checkIfFriend(connectedCarIndex) then
-            table.remove(chat.messages)
+            chat.messages[chat.messagecount] = nil
             chat.messagecount = chat.messagecount - 1
         else
             if checkIfFriend(connectedCarIndex) then
