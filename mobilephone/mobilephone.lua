@@ -151,6 +151,16 @@ function checkIfFriend(carIndex)
     end
 end
 
+if ac.getPatchVersionCode() < 2651 then
+    chat.messagecount = chat.messagecount + 1
+    local yellmessage = chat.messagecount
+    chat.messages[yellmessage] = { 'YOU ARE USING A VERSION OF CSP OLDER THAN 0.2.0!\nIF ANYTHING BREAKS UPDATE TO THE LATEST VERSION!', '', '' }
+    local yellatuser = setTimeout(function()
+        chat.messagecount = chat.messagecount - 1
+        table.remove(chat.messages, yellmessage)
+    end, 10)
+end
+
 --chat message event handler
 ac.onChatMessage(function(message, senderCarIndex, senderSessionID)
     chat.messagecount = chat.messagecount + 1
@@ -361,6 +371,9 @@ end
 
 function script.windowMainSettings(dt)
     ui.tabBar('TabBar', function()
+        if ac.getPatchVersionCode() < 2651 then
+            ui.textColored('You are using a version of CSP older than 0.2.0!\nIf anything breaks update to the latest version.\n ', rgbm.colors.red)
+        end
         --display settings
         ui.tabItem('Display', function()
             --display and glow color
