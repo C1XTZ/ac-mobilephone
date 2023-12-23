@@ -486,7 +486,7 @@ function script.windowMainSettings(dt)
                     ui.sameLine()
                     ui.text('\t')
                     ui.sameLine()
-                    if ui.checkbox('Friends Only', settings.joinnotifsoundfriends) then settings.joinnotifsoundfriends = not settings.joinnotifsoundfriends end
+                    if ui.checkbox('Only for Friends', settings.joinnotifsoundfriends) then settings.joinnotifsoundfriends = not settings.joinnotifsoundfriends end
                 end
             end
 
