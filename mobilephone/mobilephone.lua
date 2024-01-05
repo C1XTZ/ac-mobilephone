@@ -43,6 +43,9 @@ local settings = ac.storage {
     joinnotifsound = false,
     joinnotiffriends = true,
     joinnotifsoundfriends = false,
+    txtColorR = 0,
+    txtColorB = 0,
+    txtColorG = 0,
 }
 
 --initial spacing
@@ -72,6 +75,7 @@ local phone = {
     },
     ['size'] = vec2(245, 409),
     ['color'] = rgbm(0.64, 1.0, 0.71, 1),
+    ['txtColor'] = rgbm(0, 0, 0, 1),
 }
 
 local chat = {
@@ -141,6 +145,7 @@ local flags = {
 --use saved color instead if enabled
 if settings.customcolor then
     phone.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
+    phone.txtColor = rgbm(settings.txtColorR, settings.txtColorG, settings.txtColorB, 1)
 end
 
 function checkIfFriend(carIndex)
@@ -382,16 +387,30 @@ function script.windowMainSettings(dt)
                 --reset to default color if disabled
                 if not settings.customcolor then
                     phone.color = rgbm(0.640, 1.000, 0.710, 1)
+                    phone.txtColor = rgbm(0, 0, 0, 1)
                 end
             end
             --load saved colors if enabled and display colorpicker and save the new color
             if settings.customcolor then
                 ui.text('\t')
                 ui.sameLine()
+                ui.text('Display Color Picker')
+                ui.text('\t')
+                ui.sameLine()
                 phone.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
                 colorChange = ui.colorPicker('Display Color Picker', phone.color, flags.color)
                 if colorChange then
                     settings.colorR, settings.colorG, settings.colorB = phone.color.r, phone.color.g, phone.color.b
+                end
+                ui.text('\t')
+                ui.sameLine()
+                ui.text('Text Color Picker')
+                ui.text('\t')
+                ui.sameLine()
+                phone.txtColor = rgbm(settings.txtColorR, settings.txtColorG, settings.txtColorB, 1)
+                colorChange = ui.colorPicker('Text Color Picker', phone.txtColor, flags.color)
+                if colorChange then
+                    settings.txtColorR, settings.txtColorG, settings.txtColorB = phone.txtColor.r, phone.txtColor.g, phone.txtColor.b
                 end
             end
 
@@ -599,14 +618,14 @@ function script.windowMain(dt)
         --draw time
         ui.pushDWriteFont(phone.src.font)
         ui.setCursor(vec2(31, 54))
-        ui.dwriteTextAligned(time.final, 16, -1, 0, vec2(60, 18), false, 0)
+        ui.dwriteTextAligned(time.final, 16, -1, 0, vec2(60, 18), false, phone.txtColor)
         ui.popDWriteFont()
 
         --draw song info if enabled
         if settings.nowplaying then
             ui.pushDWriteFont(phone.src.font)
             ui.setCursor(vec2(90, 54))
-            ui.dwriteTextAligned(nowplaying.final, 16, -1, 0, vec2(146, 18), false, 0)
+            ui.dwriteTextAligned(nowplaying.final, 16, -1, 0, vec2(146, 18), false, phone.txtColor)
             ui.popDWriteFont()
         end
     end)
@@ -619,18 +638,18 @@ function script.windowMain(dt)
                 --make the latest message bold if enabled
                 if i == chat.messagecount and settings.chatbold then
                     ui.pushDWriteFont(phone.src.fontBold)
-                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, 0)
+                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, phone.txtColor)
                     ui.popDWriteFont()
                     ui.setScrollHereY(1)
                     --make message bold if player is mentioned (@user or user)
                 elseif string.find(string.lower(chat.messages[i][1]), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then
                     ui.pushDWriteFont(phone.src.fontBold)
-                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, 0)
+                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, phone.txtColor)
                     ui.popDWriteFont()
                     ui.setScrollHereY(1)
                 else
                     ui.pushDWriteFont(phone.src.font)
-                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, 0)
+                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, phone.txtColor)
                     ui.popDWriteFont()
                     ui.setScrollHereY(1)
                 end
