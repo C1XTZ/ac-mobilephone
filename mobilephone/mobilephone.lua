@@ -47,6 +47,10 @@ local settings = ac.storage {
     txtColorG = 0,
     alwaysnotif = false,
     enableSound = true,
+    lastCheck = 0,
+    autoUpdate = false,
+    updateInterval = 7,
+    updateStatus = 0
 }
 
 local spacetable = {}
@@ -139,7 +143,71 @@ local flags = {
     color = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.NoSidePreview, ui.ColorPickerFlags.NoDragDrop, ui.ColorPickerFlags.NoLabel, ui.ColorPickerFlags.DisplayRGB)
 }
 
---use saved color instead if enabled
+local updateStatusTable = {
+    [0] = 'C1XTZ: You shouldnt be reading this',
+    [1] = 'Updated: App successfully updated',
+    [2] = 'No Change: Latest version was already installed',
+    [3] = 'No Change: A newer version was already installed',
+    [4] = 'Error: Something went wrong, aborted update'
+}
+local updateStatusColor = {
+    [0] = rgbm.colors.white,
+    [1] = rgbm.colors.lime,
+    [2] = rgbm.colors.white,
+    [3] = rgbm.colors.white,
+    [4] = rgbm.colors.red
+}
+
+local appFolder = ac.getFolder(ac.FolderID.ACApps) .. '/lua/mobilephone/'
+local manifest = ac.INIConfig.load(appFolder .. '/manifest.ini', ac.INIFormat.Extended)
+local appVersion = manifest:get('ABOUT', 'VERSION', 0.01)
+local oneDayInSeconds = 60 * 60 * 24
+
+
+--xtz: The following function was mostly taken from tuttertep's comfy map app
+function getUpdate()
+    settings.lastCheck = os.time()
+
+    local url = 'https://github.com/C1XTZ/ac-mobilephone/archive/refs/heads/master.zip'
+    web.get(url, function(err, response)
+        if err then
+            error(err)
+            settings.updateStatus = 4
+        end
+
+        local responseBody = response.body
+        local manifest = io.loadFromZip(responseBody, 'ac-mobilephone-master/mobilephone/manifest.ini')
+        if not manifest then
+            settings.updateStatus = 4
+            return print('Couldnt find manifest.ini, aborting update.')
+        end
+
+        local version = ac.INIConfig.parse(manifest, ac.INIFormat.Extended):get('ABOUT', 'VERSION', 0)
+        if appVersion > version then
+            settings.updateStatus = 3
+            return
+        elseif appVersion == version then
+            settings.updateStatus = 2
+            return
+        end
+
+        for _, file in ipairs(io.scanZip(responseBody)) do
+            local content = io.loadFromZip(responseBody, file)
+            if content then
+                local filePath = file:match('/mobilephone/(.*)')
+                if filePath then
+                    assert(appFolder, 'appFolder is nil')
+                    if io.save(appFolder .. filePath, content) then print(file) end
+                else
+                    print('Skipping file: ' .. file)
+                end
+            end
+        end
+
+        settings.updateStatus = 1
+    end)
+end
+
 if settings.customcolor then
     phone.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
     phone.txtColor = rgbm(settings.txtColorR, settings.txtColorG, settings.txtColorB, 1)
@@ -201,7 +269,7 @@ function matchMessage(isPlayer, message)
 end
 
 ac.onChatMessage(function(message, senderCarIndex)
-    local escapedMessage = string.gsub(message, "([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1")
+    local escapedMessage = string.gsub(message, '([%(%)%.%%%+%-%*%?%[%]%^%$])', '%%%1')
     local isPlayer = senderCarIndex > -1
     local isFriend = isPlayer and checkIfFriend(senderCarIndex)
     local isMentioned = settings.notifsound and string.find(string.lower(escapedMessage), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]')
@@ -336,13 +404,47 @@ function onShowWindow()
     nowplaying.isPaused = false
     UpdateTime()
     RunUpdate()
+
+    if settings.autoUpdate and ((os.time() - settings.lastCheck) / oneDayInSeconds > settings.updateInterval) then
+        getUpdate()
+    end
 end
 
 function script.windowMainSettings(dt)
     ui.tabBar('TabBar', function()
         if ac.getPatchVersionCode() < 2651 then
-            ui.textColored('You are using a version of CSP older than 0.2.0!\nIf anything breaks update to the latest version.\n ', rgbm.colors.red)
+            ui.textColored('You are using a version of CSP older than 0.2.0!\nIf anything breaks update to the latest version\n ', rgbm.colors.red)
         end
+        ui.tabItem('Update', function()
+            ui.text('Running Mobilephone version ' .. appVersion)
+            if ui.checkbox('Enable Automatic Updates', settings.autoUpdate) then
+                settings.autoUpdate = not settings.autoUpdate
+                if settings.autoUpdate then getUpdate() end
+            end
+            if settings.autoUpdate then
+                ui.text('\t')
+                ui.sameLine()
+                settings.updateInterval = ui.slider('##UpdateInterval', settings.updateInterval, 1, 60, 'Check for Update every ' .. '%.0f days')
+            end
+            if ui.button('Manual Update') then
+                getUpdate()
+            end
+            if settings.updateStatus > 0 then
+                ui.textColored(updateStatusTable[settings.updateStatus], updateStatusColor[settings.updateStatus])
+
+                local diff = os.time() - settings.lastCheck
+                local units = { 'second(s)', 'minute(s)', 'hour(s)', 'day(s)' }
+                local values = { 1, 60, 3600, 86400 }
+
+                local i = #values
+                while i > 1 and diff < values[i] do
+                    i = i - 1
+                end
+
+                local timeAgo = math.floor(diff / values[i])
+                ui.text('Last checked ' .. timeAgo .. ' ' .. units[i] .. ' ago')
+            end
+        end)
         ui.tabItem('Display', function()
             if ui.checkbox('Custom Color', settings.customcolor) then
                 settings.customcolor = not settings.customcolor
