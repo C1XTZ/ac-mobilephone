@@ -50,7 +50,9 @@ local settings = ac.storage {
     lastCheck = 0,
     autoUpdate = false,
     updateInterval = 7,
-    updateStatus = 0
+    updateStatus = 0,
+    updateAvailable = false,
+    updateURL = '',
 }
 
 local spacetable = {}
@@ -148,79 +150,128 @@ local updateStatusTable = {
     [1] = 'Updated: App successfully updated',
     [2] = 'No Change: Latest version was already installed',
     [3] = 'No Change: A newer version was already installed',
-    [4] = 'Error: Something went wrong, aborted update'
+    [4] = 'Error: Something went wrong, aborted update',
+    [5] = 'Update Available to Download and Install'
 }
 local updateStatusColor = {
     [0] = rgbm.colors.white,
     [1] = rgbm.colors.lime,
     [2] = rgbm.colors.white,
     [3] = rgbm.colors.white,
-    [4] = rgbm.colors.red
+    [4] = rgbm.colors.red,
+    [5] = rgbm.colors.lime
 }
 
 local appFolder = ac.getFolder(ac.FolderID.ACApps) .. '/lua/mobilephone/'
 local manifest = ac.INIConfig.load(appFolder .. '/manifest.ini', ac.INIFormat.Extended)
 local appVersion = manifest:get('ABOUT', 'VERSION', 0.01)
-local oneDayInSeconds = 60 * 60 * 24
-
-
---xtz: The following function was mostly taken from tuttertep's comfy map app
-function getUpdate()
+local releaseURL = 'https://api.github.com/repos/C1XTZ/ac-mobilephone/releases/latest'
+local doUpdate = (os.time() - settings.lastCheck) / 86400 > settings.updateInterval
+local mainFile = 'mobilephone.lua'
+--xtz: The ingame updater idea was taken from tuttertep's comfy map app and rewritten to work with my github releases instead of pulling from the entire repository
+function updateCheckVersion(manual)
     settings.lastCheck = os.time()
 
-    local url = 'https://github.com/C1XTZ/ac-mobilephone/archive/refs/heads/master.zip'
-    web.get(url, function(err, response)
+    web.get(releaseURL, function(err, response)
         if err then
+            settings.updateStatus = 4
             error(err)
-            settings.updateStatus = 4
+            return
         end
 
-        local responseBody = response.body
-        local manifest = io.loadFromZip(responseBody, 'ac-mobilephone-master/mobilephone/manifest.ini')
-        if not manifest then
+        local latestRelease = JSON.parse(response.body)
+        if not (latestRelease.tag_name and latestRelease.tag_name:match('^v%d%d?%.%d%d?$')) then
+            error('URL unavailable or no Version recognized, aborted update')
             settings.updateStatus = 4
-            return print('Couldnt find manifest.ini, aborting update.')
+            return
         end
+        local version = tonumber(latestRelease.tag_name:sub(2))
 
-        local version = ac.INIConfig.parse(manifest, ac.INIFormat.Extended):get('ABOUT', 'VERSION', 0)
         if appVersion > version then
             settings.updateStatus = 3
             return
         elseif appVersion == version then
             settings.updateStatus = 2
             return
+        else
+            local downloadUrl
+            for _, asset in ipairs(latestRelease.assets) do
+                if asset.name == 'mobilephone.zip' then
+                    downloadUrl = asset.browser_download_url
+                    break
+                end
+            end
+
+            if not downloadUrl then
+                error('No matching asset found, aborted update')
+                settings.updateStatus = 4
+                return
+            end
+
+            if manual then
+                updateApplyUpdate(downloadUrl)
+            else
+                sendAppMessage('UPDATE AVAILABLE IN THE SETTINGS!')
+                settings.updateAvailable = true
+                settings.updateURL = downloadUrl
+                settings.updateStatus = 5
+            end
+        end
+    end)
+end
+
+function updateApplyUpdate(downloadUrl)
+    web.get(downloadUrl, function(downloadErr, downloadResponse)
+        if downloadErr then
+            settings.updateStatus = 4
+            error(downloadErr)
+            return
         end
 
-        for _, file in ipairs(io.scanZip(responseBody)) do
-            local content = io.loadFromZip(responseBody, file)
+        local mainFileContent
+        for _, file in ipairs(io.scanZip(downloadResponse.body)) do
+            local content = io.loadFromZip(downloadResponse.body, file)
             if content then
-                local filePath = file:match('/mobilephone/(.*)')
+                local filePath = file:match('(.*)')
                 if filePath then
-                    assert(appFolder, 'appFolder is nil')
-                    if io.save(appFolder .. filePath, content) then print(file) end
-                else
-                    print('Skipping file: ' .. file)
+                    filePath = filePath:gsub('mobilephone/', '')
+                    if filePath == mainFile then
+                        mainFileContent = content
+                    else
+                        if io.save(appFolder .. filePath, content) then print('Updating: ' .. file) end
+                    end
                 end
             end
         end
 
+        if mainFileContent then
+            if io.save(appFolder .. mainFile, mainFileContent) then print('Updating: ' .. mainFile) end
+        end
+
         settings.updateStatus = 1
+        settings.updateAvailable = false
+        settings.updateURL = ''
     end)
 end
 
-if settings.customcolor then
-    phone.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
-    phone.txtColor = rgbm(settings.txtColorR, settings.txtColorG, settings.txtColorB, 1)
+function sendAppMessage(message)
+    chat.messagecount = chat.messagecount + 1
+    local msgIndex = chat.messagecount
+    chat.messages[msgIndex] = { message, '', '' }
+
+    local msgtoUser = setTimeout(function()
+        chat.messagecount = chat.messagecount - 1
+        table.remove(chat.messages, msgIndex)
+    end, 30)
+
+    if settings.chatmove then
+        movement.timer = settings.chattimer
+        movement.up = true
+    end
 end
 
 if ac.getPatchVersionCode() < 2651 then
-    chat.messagecount = chat.messagecount + 1
-    local yellmessage = chat.messagecount
-    chat.messages[yellmessage] = { 'YOU ARE USING A VERSION OF CSP OLDER THAN 0.2.0!\nIF ANYTHING BREAKS UPDATE TO THE LATEST VERSION!', '', '' }
-    local yellatuser = setTimeout(function()
-        chat.messagecount = chat.messagecount - 1
-        table.remove(chat.messages, yellmessage)
-    end, 10)
+    sendAppMessage('YOU ARE USING A VERSION OF CSP OLDER THAN 0.2.0!\nIF ANYTHING BREAKS UPDATE TO THE LATEST VERSION!')
 end
 
 function checkIfFriend(carIndex)
@@ -405,9 +456,18 @@ function onShowWindow()
     UpdateTime()
     RunUpdate()
 
-    if settings.autoUpdate and ((os.time() - settings.lastCheck) / oneDayInSeconds > settings.updateInterval) then
-        getUpdate()
+    if settings.autoUpdate and doUpdate then
+        updateCheckVersion()
     end
+
+    if settings.updateAvailable then
+        sendAppMessage('UPDATE AVAILABLE IN THE SETTINGS!')
+    end
+end
+
+if settings.customcolor then
+    phone.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
+    phone.txtColor = rgbm(settings.txtColorR, settings.txtColorG, settings.txtColorB, 1)
 end
 
 function script.windowMainSettings(dt)
@@ -416,24 +476,29 @@ function script.windowMainSettings(dt)
             ui.textColored('You are using a version of CSP older than 0.2.0!\nIf anything breaks update to the latest version\n ', rgbm.colors.red)
         end
         ui.tabItem('Update', function()
-            ui.text('Running Mobilephone version ' .. appVersion)
-            if ui.checkbox('Enable Automatic Updates', settings.autoUpdate) then
+            ui.text('Currrently running version ' .. appVersion)
+            if ui.checkbox('Automatically Check for Updates', settings.autoUpdate) then
                 settings.autoUpdate = not settings.autoUpdate
-                if settings.autoUpdate then getUpdate() end
+                if settings.autoUpdate then updateCheckVersion() end
             end
             if settings.autoUpdate then
                 ui.text('\t')
                 ui.sameLine()
                 settings.updateInterval = ui.slider('##UpdateInterval', settings.updateInterval, 1, 60, 'Check for Update every ' .. '%.0f days')
             end
-            if ui.button('Manual Update') then
-                getUpdate()
+            if ui.button('Get Update') then
+                if settings.updateAvailable then
+                    updateApplyUpdate(settings.updateURL)
+                else
+                    updateCheckVersion(true)
+                end
             end
             if settings.updateStatus > 0 then
                 ui.textColored(updateStatusTable[settings.updateStatus], updateStatusColor[settings.updateStatus])
 
                 local diff = os.time() - settings.lastCheck
-                local units = { 'second(s)', 'minute(s)', 'hour(s)', 'day(s)' }
+                if diff > 600 then settings.updateStatus = 0 end
+                local units = { 'seconds', 'minutes', 'hours', 'days' }
                 local values = { 1, 60, 3600, 86400 }
 
                 local i = #values
