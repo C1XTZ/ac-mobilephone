@@ -53,6 +53,10 @@ local settings = ac.storage {
     updateStatus = 0,
     updateAvailable = false,
     updateURL = '',
+    chatpurge = false,
+    chatkeepsize = 50,
+    chatolderthan = 15,
+    scrollspeed = 2,
 }
 
 local spacetable = {}
@@ -75,7 +79,7 @@ local phone = {
         cracked = './src/img/cracked.png',
         destroyed = './src/img/destroyed.png',
         font = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src'),
-        fontNoEm = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src'):allowEmoji(false),
+        fontNoEm = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src'),
         fontBold = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src'):weight(ui.DWriteFont.Weight.SemiBold),
     },
     size = vec2(245, 409),
@@ -84,15 +88,15 @@ local phone = {
 }
 
 local chat = {
-    size = vec2(245, 290),
+    size = vec2(245, 282),
     messages = {},
-    messagecount = 0,
     activeinput = false,
-    inputfade = 0
+    sendcd = false,
+    inputflags = bit.bor(ui.InputTextFlags.Placeholder)
 }
 
 local movement = {
-    maxdistance = 356,
+    maxdistance = 357,
     timer = settings.chattimer,
     down = true,
     up = false,
@@ -119,7 +123,7 @@ local nowplaying = {
 }
 
 local notification = {
-    sound = ui.MediaPlayer():setSource('notif.mp3'):setVolume(0.01 * settings.notifvol):setAutoPlay(false):setLooping(false),
+    sound = ui.MediaPlayer():setSource('notif.mp3'):setAutoPlay(false):setLooping(false),
     allow = false
 }
 
@@ -161,6 +165,12 @@ local updateStatusColor = {
     [4] = rgbm.colors.red,
     [5] = rgbm.colors.lime
 }
+
+function setNotifiVolume()
+    notification.sound:setVolume(0.01 * settings.notifvol)
+end
+
+setNotifiVolume()
 
 local appFolder = ac.getFolder(ac.FolderID.ACApps) .. '/lua/mobilephone/'
 local manifest = ac.INIConfig.load(appFolder .. '/manifest.ini', ac.INIFormat.Extended)
@@ -255,12 +265,9 @@ function updateApplyUpdate(downloadUrl)
 end
 
 function sendAppMessage(message)
-    chat.messagecount = chat.messagecount + 1
-    local msgIndex = chat.messagecount
-    chat.messages[msgIndex] = { message, '', '' }
-
+    table.insert(chat.messages, { message, '', '', os.time() })
+    local msgIndex = #chat.messages
     local msgtoUser = setTimeout(function()
-        chat.messagecount = chat.messagecount - 1
         table.remove(chat.messages, msgIndex)
     end, 30)
 
@@ -271,15 +278,16 @@ function sendAppMessage(message)
 end
 
 if ac.getPatchVersionCode() < 2651 then
-    sendAppMessage('YOU ARE USING A VERSION OF CSP OLDER THAN 0.2.0!\nIF ANYTHING BREAKS UPDATE TO THE LATEST VERSION!')
-end
-
-function checkIfFriend(carIndex)
-    if ac.getPatchVersionCode() > 2144 then
-        return ac.DriverTags(ac.getDriverName(carIndex)).friend
-    else
+    sendAppMessage('YOU ARE USING A VERSION OF CSP OLDER THAN 0.2.0!\nIF YOU RUN INTO ANY ISSUES WITH THE APP UPDATE YOUR CSP!')
+    function checkIfFriend(carIndex)
         return ac.isTaggedAsFriend(ac.getDriverName(carIndex))
     end
+else
+    function checkIfFriend(carIndex)
+        return ac.DriverTags(ac.getDriverName(carIndex)).friend
+    end
+
+    phone.src.fontNoEm = phone.src.fontNoEm:allowEmoji(false)
 end
 
 function matchMessage(isPlayer, message)
@@ -319,6 +327,11 @@ function matchMessage(isPlayer, message)
     return false
 end
 
+function isMessageOld(message)
+    local messageTime = message[4]
+    return os.time() - messageTime > (settings.chatolderthan * 60)
+end
+
 ac.onChatMessage(function(message, senderCarIndex)
     local escapedMessage = string.gsub(message, '([%(%)%.%%%+%-%*%?%[%]%^%$])', '%%%1')
     local isPlayer = senderCarIndex > -1
@@ -333,17 +346,10 @@ ac.onChatMessage(function(message, senderCarIndex)
     end
 
     if not hideMessage and message:len() > 0 then
-        chat.messagecount = chat.messagecount + 1
-        chat.messages[chat.messagecount] = { message, isPlayer and ac.getDriverName(senderCarIndex) .. ': ' or '', isFriend and '* ' or '' }
-
+        table.insert(chat.messages, { message, isPlayer and ac.getDriverName(senderCarIndex) .. ': ' or '', isFriend and '* ' or '', os.time() })
         if settings.chatmove then
             movement.timer = settings.chattimer
             movement.up = true
-        end
-
-        if #chat.messages > 25 then
-            table.remove(chat.messages, 1)
-            chat.messagecount = #chat.messages
         end
 
         if isMentioned or settings.alwaysnotif then notification.allow = true end
@@ -355,8 +361,7 @@ if settings.joinnotif then
         local isFriend = checkIfFriend(connectedCarIndex)
         if settings.joinnotiffriends and not isFriend then return end
 
-        chat.messagecount = chat.messagecount + 1
-        chat.messages[chat.messagecount] = { action .. ' the Server', ac.getDriverName(connectedCarIndex) .. ' ', isFriend and '* ' or '' }
+        table.insert(chat.messages, { action .. ' the Server', ac.getDriverName(connectedCarIndex) .. ' ', isFriend and '* ' or '', os.time() })
 
         if isFriend or (settings.joinnotifsound and not settings.joinnotifsoundfriends) then
             notification.allow = true
@@ -398,6 +403,7 @@ function UpdateSpacing()
 end
 
 function UpdateSong()
+    if settings.nowplaying then nowplaying.final = '   LOADING...' end
     local currentSong = ac.currentlyPlaying()
     if currentSong.isPlaying and settings.nowplaying then
         local artistChanged = nowplaying.artist ~= currentSong.artist
@@ -614,7 +620,18 @@ function script.windowMainSettings(dt)
             ui.text('\t')
             ui.sameLine()
             settings.chatfontsize = ui.slider('##ChatFontSize', settings.chatfontsize, 6, 36, 'Chat Fontsize: ' .. '%.0f')
-
+            ui.text('\t')
+            ui.sameLine()
+            settings.scrollspeed = ui.slider('##ChatScrollSpeed', settings.scrollspeed, 1, 10, 'Chat Scroll Speed: ' .. '%.0f')
+            if ui.checkbox('Chat History Settings', settings.chatpurge) then settings.chatpurge = not settings.chatpurge end
+            if settings.chatpurge then
+                ui.text('\t')
+                ui.sameLine()
+                settings.chatkeepsize = ui.slider('##ChatKeepSize', settings.chatkeepsize, 10, 500, 'Always keep %.0f Messages')
+                ui.text('\t')
+                ui.sameLine()
+                settings.chatolderthan = ui.slider('##ChatOlderThan', settings.chatolderthan, 1, 60, 'Remove excess if older than %.0f min')
+            end
             if ui.checkbox('Show Join/Leave Messages', settings.joinnotif) then settings.joinnotif = not settings.joinnotif end
             if settings.joinnotif then
                 ui.text('\t')
@@ -653,7 +670,11 @@ function script.windowMainSettings(dt)
                 ui.text('\t')
                 ui.sameLine()
                 settings.notifvol, volumeChange = ui.slider('##SoundVolume', settings.notifvol, 1, 100, 'Sound Volume: ' .. '%.0f' .. '%')
-                if volumeChange then notification.sound:setVolume(0.01 * settings.notifvol):play() end
+                if volumeChange then setNotifiVolume() end
+                ui.sameLine()
+                if ui.button('Play') then
+                    notification.sound:play()
+                end
 
                 if ui.checkbox('Play Notification Sound for Join/Leave Messages', settings.joinnotifsound) then settings.joinnotifsound = not settings.joinnotifsound end
                 if settings.joinnotifsound then
@@ -706,15 +727,9 @@ function script.windowMain(dt)
     end
 
     local phoneHovered = ui.rectHovered(0, app.size)
-    if phoneHovered and settings.chatmove then
+    if settings.chatmove and (phoneHovered or chat.activeinput) then
         movement.timer = settings.chattimer
         movement.up = true
-    end
-
-    if phoneHovered and movement.distance == 0 then
-        chat.inputfade = 1
-    elseif chat.inputfade > 0 then
-        chat.inputfade = chat.inputfade - dt
     end
 
     if settings.notifsound or settings.joinnotifsound then
@@ -744,27 +759,34 @@ function script.windowMain(dt)
         end
     end)
 
-    ui.setCursor(vec2(12, 74 + movement.smooth))
+    ui.setCursor(vec2(11, 73 + movement.smooth))
     ui.childWindow('Chatbox', chat.size, flags.window, function()
-        if chat.messagecount > 0 then
-            for i = 1, chat.messagecount do
-                if i == chat.messagecount and settings.chatbold then
+        if #chat.messages > 0 then
+            if #chat.messages > settings.chatkeepsize and isMessageOld(chat.messages[1]) then
+                table.remove(chat.messages, 1)
+            end
+
+            for i = 1, #chat.messages do
+                if i == #chat.messages and settings.chatbold then
                     ui.pushDWriteFont(phone.src.fontBold)
                     ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, phone.txtColor)
                     ui.popDWriteFont()
-                    ui.setScrollHereY(1)
                 elseif string.find(string.lower(chat.messages[i][1]), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then
                     ui.pushDWriteFont(phone.src.fontBold)
                     ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, phone.txtColor)
                     ui.popDWriteFont()
-                    ui.setScrollHereY(1)
                 else
                     ui.pushDWriteFont(phone.src.font)
                     ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, phone.txtColor)
                     ui.popDWriteFont()
-                    ui.setScrollHereY(1)
                 end
+                if not phoneHovered then ui.setScrollHereY(1) end
             end
+        end
+
+        if phoneHovered and ui.mouseWheel() ~= 0 then
+            local mouseWheel = (ui.mouseWheel() * -1) * (settings.scrollspeed * 10)
+            ui.setScrollY(mouseWheel, true, true)
         end
     end)
 
@@ -775,10 +797,10 @@ function script.windowMain(dt)
             end
 
             --split x and z axis into 4 directions
-            car.forces.left = car.player.acceleration.x < 0 and car.player.acceleration.x * -1 or 0
-            car.forces.right = car.player.acceleration.x >= 0 and car.player.acceleration.x or 0
-            car.forces.front = car.player.acceleration.z < 0 and car.player.acceleration.z * -1 or 0
-            car.forces.back = car.player.acceleration.z >= 0 and car.player.acceleration.z or 0
+            car.forces.left = math.max(-car.player.acceleration.x, 0)
+            car.forces.right = math.max(car.player.acceleration.x, 0)
+            car.forces.front = math.max(-car.player.acceleration.z, 0)
+            car.forces.back = math.max(car.player.acceleration.z, 0)
 
             --add all the forces together and calculate the mean value then insert them into a table
             local totalForce = (car.forces.front + car.forces.back + car.forces.left + car.forces.right) / 2
@@ -846,24 +868,25 @@ function script.windowMain(dt)
     end)
 
     --xtz: not affected by glare/glow because childwindows dont have clickthrough so it cant be moved 'below', not important just a ocd thing
-    ui.setCursor(vec2(8, 347))
+    ui.setCursor(vec2(8, 347 + movement.smooth))
     ui.childWindow('Chatinput', vec2(323, 38), flags.window, function()
-        if phoneHovered and movement.distance == 0 and car.damage.state < 2 or chat.activeinput then
-            if settings.chatmove then
-                movement.timer = settings.chattimer
-                movement.up = true
-            end
+        local chatInputString, chatInputChange, chatInputEnter = ui.inputText('Type new message...', chatInputString, chat.inputflags)
+        chat.activeinput = ui.itemActive()
 
-            local chatInputString, chatInputChange, chatInputEnter = ui.inputText('Type new message...', chatInputString, ui.InputTextFlags.Placeholder)
-            chat.activeinput = ui.itemActive()
+        --there is a cooldown on sending chat messages online
+        if chatInputEnter and chatInputString and not chat.sendcd then
+            ac.sendChatMessage(chatInputString)
+            ui.setKeyboardFocusHere(-1)
+            ui.clearInputCharacters()
 
-            if chatInputEnter and chatInputString then
-                ac.sendChatMessage(chatInputString)
-                ui.clearInputCharacters()
-                ui.setKeyboardFocusHere(-1)
-            end
-        elseif chat.inputfade > 0 and car.damage.state < 2 then
-            ui.drawRectFilled(vec2(20, 8), vec2(229, 30), rgbm(0.1, 0.1, 0.1, 0.66 * chat.inputfade), 0)
+            chat.sendcd = true
+            --need to add this flag because otherwise the inputbox is emptied even tho clearInputCharacters is not called after pressing enter
+            chat.inputflags = bit.bor(ui.InputTextFlags.Placeholder, ui.InputTextFlags.RetainSelection)
+
+            setTimeout(function()
+                chat.sendcd = false
+                chat.inputflags = bit.bor(ui.InputTextFlags.Placeholder)
+            end, 1)
         end
     end)
 end
