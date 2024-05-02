@@ -5,7 +5,7 @@
 ui.setAsynchronousImagesLoading(true)
 
 --xtz: adding this so unicode characters like kanji dont break while scrolling
---xtz: had to add a -1 to nowplaying.length and a +1 to settings.spaces because otherwise the function complains about a nil value for j and im too lazy to fix this
+--xtz: had to add a -1 to nowPlaying.length and a +1 to settings.spaces because otherwise the function complains about a nil value for j and im too lazy to fix this
 require 'src.utf8'
 function utf8.sub(s, i, j)
     i = utf8.offset(s, i)
@@ -16,36 +16,36 @@ end
 local settings = ac.storage {
     glare = true,
     glow = true,
-    tracktime = false,
-    nowplaying = true,
+    trackTime = false,
+    nowPlaying = true,
     spaces = 5,
-    scrollspeed = 2,
+    scrollSpeed = 2,
     damage = false,
-    damageduration = 5,
-    fadeduration = 3,
-    crackforce = 15,
-    breakforce = 30,
-    chatmove = true,
-    chattimer = 15,
-    chatmovespeed = 4,
-    chatfontsize = 16,
-    chatbold = false,
-    customcolor = false,
+    damageDuration = 5,
+    fadeDuration = 3,
+    crackForce = 15,
+    breakForce = 30,
+    chatMove = true,
+    chatTimer = 15,
+    chatMoveSpeed = 4,
+    chatFontSize = 16,
+    chatBold = false,
+    customColor = false,
     colorR = 0.640,
     colorG = 1.000,
     colorB = 0.710,
     hideKB = true,
     hideAnnoy = true,
-    notifsound = false,
-    notifvol = 5,
-    joinnotif = true,
-    joinnotifsound = false,
-    joinnotiffriends = true,
-    joinnotifsoundfriends = false,
+    notifSound = false,
+    notifVolume = 5,
+    joinNotif = true,
+    joinNotifSound = false,
+    joinNotifFriends = true,
+    joinNotifSoundFriends = false,
     txtColorR = 0,
     txtColorB = 0,
     txtColorG = 0,
-    alwaysnotif = false,
+    alwaysNotif = false,
     enableSound = true,
     lastCheck = 0,
     autoUpdate = false,
@@ -53,15 +53,15 @@ local settings = ac.storage {
     updateStatus = 0,
     updateAvailable = false,
     updateURL = '',
-    chatpurge = false,
-    chatkeepsize = 50,
-    chatolderthan = 15,
-    scrollspeed = 2,
+    chatPurge = false,
+    chatKeepSize = 50,
+    chatOlderThan = 15,
+    chatScrollSpeed = 2,
 }
 
-local spacetable = {}
+local spaceTable = {}
 for i = 0, settings.spaces + 1 do
-    spacetable[i] = ' '
+    spaceTable[i] = ' '
 end
 
 local app = {
@@ -90,14 +90,14 @@ local phone = {
 local chat = {
     size = vec2(245, 282),
     messages = {},
-    activeinput = false,
-    sendcd = false,
-    inputflags = bit.bor(ui.InputTextFlags.Placeholder)
+    activeInput = false,
+    sendCd = false,
+    inputFlags = bit.bor(ui.InputTextFlags.Placeholder)
 }
 
 local movement = {
-    maxdistance = 357,
-    timer = settings.chattimer,
+    maxDistance = 357,
+    timer = settings.chatTimer,
     down = true,
     up = false,
     distance = 0,
@@ -110,7 +110,7 @@ local time = {
     final = ''
 }
 
-local nowplaying = {
+local nowPlaying = {
     artist = '',
     title = '',
     scroll = '',
@@ -118,7 +118,7 @@ local nowplaying = {
     length = 0,
     pstr = '    PAUSE ll',
     isPaused = false,
-    spaces = table.concat(spacetable),
+    spaces = table.concat(spaceTable),
     FUCK = false
 }
 
@@ -132,7 +132,7 @@ local car = {
     damage = {
         state = 0,
         duration = 0,
-        fadetimer = settings.fadeduration,
+        fadeTimer = settings.fadeDuration,
         glow = 1
     },
     forces = {
@@ -167,7 +167,7 @@ local updateStatusColor = {
 }
 
 function setNotifiVolume()
-    notification.sound:setVolume(0.01 * settings.notifvol)
+    notification.sound:setVolume(0.01 * settings.notifVolume)
 end
 
 setNotifiVolume()
@@ -177,7 +177,7 @@ local manifest = ac.INIConfig.load(appFolder .. '/manifest.ini', ac.INIFormat.Ex
 local appVersion = manifest:get('ABOUT', 'VERSION', 0.01)
 local releaseURL = 'https://api.github.com/repos/C1XTZ/ac-mobilephone/releases/latest'
 local doUpdate = (os.time() - settings.lastCheck) / 86400 > settings.updateInterval
-local mainFile = 'mobilephone.lua'
+local mainFile, assetFile = 'mobilephone.lua', 'mobilephone.zip'
 --xtz: The ingame updater idea was taken from tuttertep's comfy map app and rewritten to work with my github releases instead of pulling from the entire repository
 function updateCheckVersion(manual)
     settings.lastCheck = os.time()
@@ -206,7 +206,7 @@ function updateCheckVersion(manual)
         else
             local downloadUrl
             for _, asset in ipairs(latestRelease.assets) do
-                if asset.name == 'mobilephone.zip' then
+                if asset.name == assetFile then
                     downloadUrl = asset.browser_download_url
                     break
                 end
@@ -267,12 +267,12 @@ end
 function sendAppMessage(message)
     table.insert(chat.messages, { message, '', '', os.time() })
     local msgIndex = #chat.messages
-    local msgtoUser = setTimeout(function()
+    local msgToUser = setTimeout(function()
         table.remove(chat.messages, msgIndex)
     end, 30)
 
-    if settings.chatmove then
-        movement.timer = settings.chattimer
+    if settings.chatMove then
+        movement.timer = settings.chatTimer
         movement.up = true
     end
 end
@@ -329,14 +329,14 @@ end
 
 function isMessageOld(message)
     local messageTime = message[4]
-    return os.time() - messageTime > (settings.chatolderthan * 60)
+    return os.time() - messageTime > (settings.chatOlderThan * 60)
 end
 
 ac.onChatMessage(function(message, senderCarIndex)
     local escapedMessage = string.gsub(message, '([%(%)%.%%%+%-%*%?%[%]%^%$])', '%%%1')
     local isPlayer = senderCarIndex > -1
     local isFriend = isPlayer and checkIfFriend(senderCarIndex)
-    local isMentioned = settings.notifsound and string.find(string.lower(escapedMessage), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]')
+    local isMentioned = settings.notifSound and string.find(string.lower(escapedMessage), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]')
     local hideMessage = false
 
     if isPlayer then
@@ -347,28 +347,28 @@ ac.onChatMessage(function(message, senderCarIndex)
 
     if not hideMessage and message:len() > 0 then
         table.insert(chat.messages, { message, isPlayer and ac.getDriverName(senderCarIndex) .. ': ' or '', isFriend and '* ' or '', os.time() })
-        if settings.chatmove then
-            movement.timer = settings.chattimer
+        if settings.chatMove then
+            movement.timer = settings.chatTimer
             movement.up = true
         end
 
-        if isMentioned or settings.alwaysnotif then notification.allow = true end
+        if isMentioned or settings.alwaysNotif then notification.allow = true end
     end
 end)
 
-if settings.joinnotif then
+if settings.joinNotif then
     local function connectionHandler(connectedCarIndex, action)
         local isFriend = checkIfFriend(connectedCarIndex)
-        if settings.joinnotiffriends and not isFriend then return end
+        if settings.joinNotifFriends and not isFriend then return end
 
         table.insert(chat.messages, { action .. ' the Server', ac.getDriverName(connectedCarIndex) .. ' ', isFriend and '* ' or '', os.time() })
 
-        if isFriend or (settings.joinnotifsound and not settings.joinnotifsoundfriends) then
+        if isFriend or (settings.joinNotifSound and not settings.joinNotifSoundFriends) then
             notification.allow = true
         end
 
-        if settings.chatmove then
-            movement.timer = settings.chattimer
+        if settings.chatMove then
+            movement.timer = settings.chatTimer
             movement.up = true
         end
     end
@@ -382,63 +382,63 @@ if settings.joinnotif then
     end)
 end
 
-local scrlintvl
+local scrollInterval
 function scrollText()
-    scrlintvl = setInterval(function()
-        local nletter = utf8.sub(nowplaying.scroll, nowplaying.length - 1, nowplaying.length - 1)
-        local nstring = utf8.sub(nowplaying.scroll, 1, nowplaying.length - 1)
-        local ntext = nletter .. nstring
-        nowplaying.scroll = ntext
-        nowplaying.final = ntext
-    end, 1 / settings.scrollspeed, 'ST')
+    scrollInterval = setInterval(function()
+        local nLetter = utf8.sub(nowPlaying.scroll, nowPlaying.length - 1, nowPlaying.length - 1)
+        local nString = utf8.sub(nowPlaying.scroll, 1, nowPlaying.length - 1)
+        local nText = nLetter .. nString
+        nowPlaying.scroll = nText
+        nowPlaying.final = nText
+    end, 1 / settings.scrollSpeed, 'ST')
 end
 
 function UpdateSpacing()
-    spacetable = {}
+    spaceTable = {}
     for i = 0, settings.spaces + 1 do
-        spacetable[i] = ' '
+        spaceTable[i] = ' '
     end
-    nowplaying.spaces = table.concat(spacetable)
-    nowplaying.FUCK = true
+    nowPlaying.spaces = table.concat(spaceTable)
+    nowPlaying.FUCK = true
 end
 
 function UpdateSong()
-    if settings.nowplaying then nowplaying.final = '   LOADING...' end
+    if settings.nowPlaying then nowPlaying.final = '   LOADING...' end
     local currentSong = ac.currentlyPlaying()
-    if currentSong.isPlaying and settings.nowplaying then
-        local artistChanged = nowplaying.artist ~= currentSong.artist
-        local titleChanged = nowplaying.title ~= currentSong.title
+    if currentSong.isPlaying and settings.nowPlaying then
+        local artistChanged = nowPlaying.artist ~= currentSong.artist
+        local titleChanged = nowPlaying.title ~= currentSong.title
 
-        if artistChanged or titleChanged or nowplaying.isPaused or nowplaying.FUCK then
-            if not scrlintvl then scrollText() end
-            nowplaying.isPaused = false
-            nowplaying.FUCK = false
-            nowplaying.artist = currentSong.artist
-            nowplaying.title = currentSong.title
+        if artistChanged or titleChanged or nowPlaying.isPaused or nowPlaying.FUCK then
+            if not scrollInterval then scrollText() end
+            nowPlaying.isPaused = false
+            nowPlaying.FUCK = false
+            nowPlaying.artist = currentSong.artist
+            nowPlaying.title = currentSong.title
 
-            local isUnknownArtist = string.lower(nowplaying.artist) == 'unknown artist'
-            nowplaying.scroll = isUnknownArtist and (nowplaying.title .. nowplaying.spaces) or (nowplaying.artist .. ' - ' .. nowplaying.title .. nowplaying.spaces)
+            local isUnknownArtist = string.lower(nowPlaying.artist) == 'unknown artist'
+            nowPlaying.scroll = isUnknownArtist and (nowPlaying.title .. nowPlaying.spaces) or (nowPlaying.artist .. ' - ' .. nowPlaying.title .. nowPlaying.spaces)
 
-            if utf8.len(nowplaying.scroll) < 19 then
-                nowplaying.scroll = nowplaying.scroll .. string.rep(' ', 19 - utf8.len(nowplaying.scroll))
+            if utf8.len(nowPlaying.scroll) < 19 then
+                nowPlaying.scroll = nowPlaying.scroll .. string.rep(' ', 19 - utf8.len(nowPlaying.scroll))
             end
 
-            nowplaying.length = utf8.len(nowplaying.scroll)
+            nowPlaying.length = utf8.len(nowPlaying.scroll)
         end
-    elseif not currentSong.isPlaying and not nowplaying.isPaused and settings.nowplaying and nowplaying.artist ~= '' then
-        if scrlintvl then
-            clearInterval(scrlintvl)
-            scrlintvl = nil
+    elseif not currentSong.isPlaying and not nowPlaying.isPaused and settings.nowPlaying and nowPlaying.artist ~= '' then
+        if scrollInterval then
+            clearInterval(scrollInterval)
+            scrollInterval = nil
         end
 
-        nowplaying.isPaused = true
-        nowplaying.length = utf8.len(nowplaying.pstr)
-        nowplaying.final = nowplaying.pstr
+        nowPlaying.isPaused = true
+        nowPlaying.length = utf8.len(nowPlaying.pstr)
+        nowPlaying.final = nowPlaying.pstr
     end
 end
 
-function UpdateTime()
-    if settings.tracktime then
+function updateTime()
+    if settings.trackTime then
         time.track = string.format('%02d', ac.getSim().timeHours) .. ':' .. string.format('%02d', ac.getSim().timeMinutes)
         time.final = time.track
     else
@@ -447,20 +447,20 @@ function UpdateTime()
     end
 end
 
-local updtintvl
-function RunUpdate()
-    updtintvl = setInterval(function()
-        UpdateTime()
-        if settings.nowplaying then UpdateSong() end
+local updateInterval
+function runUpdate()
+    updateInterval = setInterval(function()
+        updateTime()
+        if settings.nowPlaying then UpdateSong() end
     end, 2, 'RU')
 end
 
 function onShowWindow()
-    if settings.nowplaying then nowplaying.final = '   LOADING...' end
-    nowplaying.FUCK = true
-    nowplaying.isPaused = false
-    UpdateTime()
-    RunUpdate()
+    if settings.nowPlaying then nowPlaying.final = '   LOADING...' end
+    nowPlaying.FUCK = true
+    nowPlaying.isPaused = false
+    updateTime()
+    runUpdate()
 
     if settings.autoUpdate and doUpdate then
         updateCheckVersion()
@@ -471,7 +471,7 @@ function onShowWindow()
     end
 end
 
-if settings.customcolor then
+if settings.customColor then
     phone.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
     phone.txtColor = rgbm(settings.txtColorR, settings.txtColorG, settings.txtColorB, 1)
 end
@@ -517,16 +517,16 @@ function script.windowMainSettings(dt)
             end
         end)
         ui.tabItem('Display', function()
-            if ui.checkbox('Custom Color', settings.customcolor) then
-                settings.customcolor = not settings.customcolor
+            if ui.checkbox('Custom Color', settings.customColor) then
+                settings.customColor = not settings.customColor
                 --reset to default color if disabled
-                if not settings.customcolor then
+                if not settings.customColor then
                     phone.color = rgbm(0.640, 1.000, 0.710, 1)
                     phone.txtColor = rgbm(0, 0, 0, 1)
                 end
             end
 
-            if settings.customcolor then
+            if settings.customColor then
                 ui.text('\t')
                 ui.sameLine()
                 ui.text('Display Color Picker')
@@ -553,41 +553,41 @@ function script.windowMainSettings(dt)
 
             if ui.checkbox('Screen Glow', settings.glow) then settings.glow = not settings.glow end
 
-            if ui.checkbox('Show Current Song', settings.nowplaying) then
-                settings.nowplaying = not settings.nowplaying
-                if settings.nowplaying then
-                    nowplaying.FUCK = true
+            if ui.checkbox('Show Current Song', settings.nowPlaying) then
+                settings.nowPlaying = not settings.nowPlaying
+                if settings.nowPlaying then
+                    nowPlaying.FUCK = true
                     UpdateSong()
                 else
-                    clearInterval(updtintvl)
-                    clearInterval(scrlintvl)
-                    updtintvl = nil
-                    scrlintvl = nil
-                    RunUpdate()
+                    clearInterval(updateInterval)
+                    clearInterval(scrollInterval)
+                    updateInterval = nil
+                    scrollInterval = nil
+                    runUpdate()
                 end
             end
 
-            if settings.nowplaying then
+            if settings.nowPlaying then
                 ui.text('\t')
                 ui.sameLine()
                 settings.spaces = ui.slider('##Spaces', settings.spaces, 1, 25, 'Spaces: ' .. '%.0f')
-                if string.len(nowplaying.spaces) ~= settings.spaces + 1 then
+                if string.len(nowPlaying.spaces) ~= settings.spaces + 1 then
                     UpdateSpacing()
                 end
 
                 ui.text('\t')
                 ui.sameLine()
-                settings.scrollspeed, speedChange = ui.slider('##ScrollSpeed', settings.scrollspeed, 0, 15, 'Scroll Speed: ' .. '%.1f')
-                if speedChange and not nowplaying.isPaused then
-                    clearInterval(scrlintvl)
-                    scrlintvl = nil
+                settings.scrollSpeed, speedChange = ui.slider('##ScrollSpeed', settings.scrollSpeed, 0, 15, 'Scroll Speed: ' .. '%.1f')
+                if speedChange and not nowPlaying.isPaused then
+                    clearInterval(scrollInterval)
+                    scrollInterval = nil
                     scrollText()
                 end
             end
 
-            if ui.checkbox('Use Track Time', settings.tracktime) then
-                settings.tracktime = not settings.tracktime
-                UpdateTime()
+            if ui.checkbox('Use Track Time', settings.trackTime) then
+                settings.trackTime = not settings.trackTime
+                updateTime()
             end
 
             if ui.checkbox('Screen Damage', settings.damage) then
@@ -598,69 +598,69 @@ function script.windowMainSettings(dt)
             if settings.damage then
                 ui.text('\t')
                 ui.sameLine()
-                settings.damageduration, damageChange = ui.slider('##DamageDuration', settings.damageduration, 1, 60, 'Duration: ' .. '%.1f seconds')
-                if damageChange then car.damage.duration = settings.damageduration end
+                settings.damageDuration, damageChange = ui.slider('##DamageDuration', settings.damageDuration, 1, 60, 'Duration: ' .. '%.1f seconds')
+                if damageChange then car.damage.duration = settings.damageDuration end
 
                 ui.text('\t')
                 ui.sameLine()
-                settings.fadeduration, fadeChange = ui.slider('##FadeDuration', settings.fadeduration, 1, 60, 'Fade out: ' .. '%.1f seconds')
-                if fadeChange then car.damage.fadetimer = settings.fadeduration end
+                settings.fadeDuration, fadeChange = ui.slider('##FadeDuration', settings.fadeDuration, 1, 60, 'Fade out: ' .. '%.1f seconds')
+                if fadeChange then car.damage.fadeTimer = settings.fadeDuration end
 
                 ui.text('\t')
                 ui.sameLine()
-                settings.crackforce = ui.slider('##CrackForce', settings.crackforce, 5, 50, 'Crack Force: ' .. '%.0f')
+                settings.crackForce = ui.slider('##CrackForce', settings.crackForce, 5, 50, 'Crack Force: ' .. '%.0f')
 
                 ui.text('\t')
                 ui.sameLine()
-                settings.breakforce = ui.slider('##BreakForce', settings.breakforce, 10, 100, 'Break Force: ' .. '%.0f')
+                settings.breakForce = ui.slider('##BreakForce', settings.breakForce, 10, 100, 'Break Force: ' .. '%.0f')
             end
         end)
 
         ui.tabItem('Chat', function()
             ui.text('\t')
             ui.sameLine()
-            settings.chatfontsize = ui.slider('##ChatFontSize', settings.chatfontsize, 6, 36, 'Chat Fontsize: ' .. '%.0f')
+            settings.chatFontSize = ui.slider('##ChatFontSize', settings.chatFontSize, 6, 36, 'Chat Fontsize: ' .. '%.0f')
             ui.text('\t')
             ui.sameLine()
-            settings.scrollspeed = ui.slider('##ChatScrollSpeed', settings.scrollspeed, 1, 10, 'Chat Scroll Speed: ' .. '%.0f')
-            if ui.checkbox('Chat History Settings', settings.chatpurge) then settings.chatpurge = not settings.chatpurge end
-            if settings.chatpurge then
+            settings.chatScrollSpeed = ui.slider('##ChatScrollSpeed', settings.chatScrollSpeed, 1, 10, 'Chat Scroll Speed: ' .. '%.0f')
+            if ui.checkbox('Chat History Settings', settings.chatPurge) then settings.chatPurge = not settings.chatPurge end
+            if settings.chatPurge then
                 ui.text('\t')
                 ui.sameLine()
-                settings.chatkeepsize = ui.slider('##ChatKeepSize', settings.chatkeepsize, 10, 500, 'Always keep %.0f Messages')
+                settings.chatKeepSize = ui.slider('##ChatKeepSize', settings.chatKeepSize, 10, 500, 'Always keep %.0f Messages')
                 ui.text('\t')
                 ui.sameLine()
-                settings.chatolderthan = ui.slider('##ChatOlderThan', settings.chatolderthan, 1, 60, 'Remove excess if older than %.0f min')
+                settings.chatOlderThan = ui.slider('##ChatOlderThan', settings.chatOlderThan, 1, 60, 'Remove excess if older than %.0f min')
             end
-            if ui.checkbox('Show Join/Leave Messages', settings.joinnotif) then settings.joinnotif = not settings.joinnotif end
-            if settings.joinnotif then
+            if ui.checkbox('Show Join/Leave Messages', settings.joinNotif) then settings.joinNotif = not settings.joinNotif end
+            if settings.joinNotif then
                 ui.text('\t')
                 ui.sameLine()
-                if ui.checkbox('Friends Only', settings.joinnotiffriends) then settings.joinnotiffriends = not settings.joinnotiffriends end
+                if ui.checkbox('Friends Only', settings.joinNotifFriends) then settings.joinNotifFriends = not settings.joinNotifFriends end
             end
 
-            if ui.checkbox('Highlight Latest Message', settings.chatbold) then settings.chatbold = not settings.chatbold end
+            if ui.checkbox('Highlight Latest Message', settings.chatBold) then settings.chatBold = not settings.chatBold end
 
             if ui.checkbox('Hide Kick and Ban Messages', settings.hideKB) then settings.hideKB = not settings.hideKB end
 
             if ui.checkbox('Hide Annoying App Messages', settings.hideAnnoy) then settings.hideAnnoy = not settings.hideAnnoy end
 
-            if ui.checkbox('Chat Inactivity Minimizes Phone', settings.chatmove) then
-                settings.chatmove = not settings.chatmove
-                if settings.chatmove then
+            if ui.checkbox('Chat Inactivity Minimizes Phone', settings.chatMove) then
+                settings.chatMove = not settings.chatMove
+                if settings.chatMove then
                     movement.up = false
-                    movement.timer = settings.chattimer
+                    movement.timer = settings.chatTimer
                 end
             end
 
-            if settings.chatmove then
+            if settings.chatMove then
                 ui.text('\t')
                 ui.sameLine()
-                settings.chattimer, chatinactiveChange = ui.slider('##ChatTimer', settings.chattimer, 1, 120, 'Inactivity: ' .. '%.0f seconds')
-                if chatinactiveChange then movement.timer = settings.chattimer end
+                settings.chatTimer, chatinactiveChange = ui.slider('##ChatTimer', settings.chatTimer, 1, 120, 'Inactivity: ' .. '%.0f seconds')
+                if chatinactiveChange then movement.timer = settings.chatTimer end
                 ui.text('\t')
                 ui.sameLine()
-                settings.chatmovespeed = ui.slider('##ChatMoveSpeed', settings.chatmovespeed, 1, 20, 'Speed: ' .. '%.0f')
+                settings.chatMoveSpeed = ui.slider('##ChatMoveSpeed', settings.chatMoveSpeed, 1, 20, 'Speed: ' .. '%.0f')
             end
         end)
 
@@ -669,24 +669,24 @@ function script.windowMainSettings(dt)
             if settings.enableSound then
                 ui.text('\t')
                 ui.sameLine()
-                settings.notifvol, volumeChange = ui.slider('##SoundVolume', settings.notifvol, 1, 100, 'Sound Volume: ' .. '%.0f' .. '%')
+                settings.notifVolume, volumeChange = ui.slider('##SoundVolume', settings.notifVolume, 1, 100, 'Sound Volume: ' .. '%.0f' .. '%')
                 if volumeChange then setNotifiVolume() end
                 ui.sameLine()
                 if ui.button('Play') then
                     notification.sound:play()
                 end
 
-                if ui.checkbox('Play Notification Sound for Join/Leave Messages', settings.joinnotifsound) then settings.joinnotifsound = not settings.joinnotifsound end
-                if settings.joinnotifsound then
+                if ui.checkbox('Play Notification Sound for Join/Leave Messages', settings.joinNotifSound) then settings.joinNotifSound = not settings.joinNotifSound end
+                if settings.joinNotifSound then
                     ui.text('\t')
                     ui.sameLine()
-                    if ui.checkbox('Only Play for Friends', settings.joinnotifsoundfriends) then settings.joinnotifsoundfriends = not settings.joinnotifsoundfriends end
+                    if ui.checkbox('Only Play for Friends', settings.joinNotifSoundFriends) then settings.joinNotifSoundFriends = not settings.joinNotifSoundFriends end
                 end
 
-                if ui.checkbox('Play Notification Sound for all Messages', settings.alwaysnotif) then settings.alwaysnotif = not settings.alwaysnotif end
+                if ui.checkbox('Play Notification Sound for all Messages', settings.alwaysNotif) then settings.alwaysNotif = not settings.alwaysNotif end
 
-                if not settings.alwaysnotif then
-                    if ui.checkbox('Play Notification Sound when Mentioned', settings.notifsound) then settings.notifsound = not settings.notifsound end
+                if not settings.alwaysNotif then
+                    if ui.checkbox('Play Notification Sound when Mentioned', settings.notifSound) then settings.notifSound = not settings.notifSound end
                 end
             end
         end)
@@ -696,7 +696,7 @@ end
 local VecTR = vec2(app.padding.x, phone.size.y - phone.size.y - app.padding.y)
 local VecBL = vec2(phone.size.x + app.padding.x, phone.size.y - app.padding.y)
 function script.windowMain(dt)
-    if settings.chatmove then
+    if settings.chatMove then
         if movement.timer > 0 and movement.distance == 0 then
             movement.timer = movement.timer - dt
             movement.down = true
@@ -704,35 +704,35 @@ function script.windowMain(dt)
 
         if movement.timer <= 0 and movement.down then
             movement.down = true
-            movement.distance = math.floor(movement.distance + dt * 100 * settings.chatmovespeed)
-            movement.smooth = math.floor(math.smootherstep(math.lerpInvSat(movement.distance, 0, movement.maxdistance)) * movement.maxdistance)
+            movement.distance = math.floor(movement.distance + dt * 100 * settings.chatMoveSpeed)
+            movement.smooth = math.floor(math.smootherstep(math.lerpInvSat(movement.distance, 0, movement.maxDistance)) * movement.maxDistance)
         elseif movement.timer > 0 and movement.up then
-            movement.distance = math.floor(movement.distance - dt * 100 * settings.chatmovespeed)
-            movement.smooth = math.floor(math.smootherstep(math.lerpInvSat(movement.distance, 0, movement.maxdistance)) * movement.maxdistance)
+            movement.distance = math.floor(movement.distance - dt * 100 * settings.chatMoveSpeed)
+            movement.smooth = math.floor(math.smootherstep(math.lerpInvSat(movement.distance, 0, movement.maxDistance)) * movement.maxDistance)
             --che: the entire thing doesnt work if I don't make it a new variable. I have idea why and I am far too tired to sit and work it out for another 2 hours
             --xtz: it seems to work, so im not touching it
         end
 
-        if movement.distance > movement.maxdistance then
-            movement.distance = movement.maxdistance
+        if movement.distance > movement.maxDistance then
+            movement.distance = movement.maxDistance
             movement.down = false
         elseif movement.distance < 0 then
             movement.distance = 0
             movement.up = false
-            movement.timer = settings.chattimer
+            movement.timer = settings.chatTimer
         end
-    elseif not settings.chatmove and movement.distance ~= 0 then
+    elseif not settings.chatMove and movement.distance ~= 0 then
         movement.distance = 0
         movement.smooth = 0
     end
 
     local phoneHovered = ui.rectHovered(0, app.size)
-    if settings.chatmove and (phoneHovered or chat.activeinput) then
-        movement.timer = settings.chattimer
+    if settings.chatMove and (phoneHovered or chat.activeInput) then
+        movement.timer = settings.chatTimer
         movement.up = true
     end
 
-    if settings.notifsound or settings.joinnotifsound then
+    if settings.notifSound or settings.joinNotifSound then
         if notification.sound:playing() and notification.sound:ended() then notification.sound:pause() end
         if settings.enableSound and (notification.allow and not notification.sound:playing()) then
             notification.sound:play()
@@ -751,10 +751,10 @@ function script.windowMain(dt)
         ui.dwriteTextAligned(time.final, 16, -1, 0, vec2(60, 18), false, phone.txtColor)
         ui.popDWriteFont()
 
-        if settings.nowplaying then
+        if settings.nowPlaying then
             ui.pushDWriteFont(phone.src.fontNoEm)
             ui.setCursor(vec2(90, 54))
-            ui.dwriteTextAligned(nowplaying.final, 16, -1, 0, vec2(146, 18), false, phone.txtColor)
+            ui.dwriteTextAligned(nowPlaying.final, 16, -1, 0, vec2(146, 18), false, phone.txtColor)
             ui.popDWriteFont()
         end
     end)
@@ -762,22 +762,22 @@ function script.windowMain(dt)
     ui.setCursor(vec2(11, 73 + movement.smooth))
     ui.childWindow('Chatbox', chat.size, flags.window, function()
         if #chat.messages > 0 then
-            if #chat.messages > settings.chatkeepsize and isMessageOld(chat.messages[1]) then
+            if #chat.messages > settings.chatKeepSize and isMessageOld(chat.messages[1]) then
                 table.remove(chat.messages, 1)
             end
 
             for i = 1, #chat.messages do
-                if i == #chat.messages and settings.chatbold then
+                if i == #chat.messages and settings.chatBold then
                     ui.pushDWriteFont(phone.src.fontBold)
-                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, phone.txtColor)
+                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
                     ui.popDWriteFont()
                 elseif string.find(string.lower(chat.messages[i][1]), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then
                     ui.pushDWriteFont(phone.src.fontBold)
-                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, phone.txtColor)
+                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
                     ui.popDWriteFont()
                 else
                     ui.pushDWriteFont(phone.src.font)
-                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatfontsize, phone.txtColor)
+                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
                     ui.popDWriteFont()
                 end
                 if not phoneHovered then ui.setScrollHereY(1) end
@@ -785,7 +785,7 @@ function script.windowMain(dt)
         end
 
         if phoneHovered and ui.mouseWheel() ~= 0 then
-            local mouseWheel = (ui.mouseWheel() * -1) * (settings.scrollspeed * 10)
+            local mouseWheel = (ui.mouseWheel() * -1) * (settings.chatScrollSpeed * 10)
             ui.setScrollY(mouseWheel, true, true)
         end
     end)
@@ -809,35 +809,35 @@ function script.windowMain(dt)
             local maxForce = math.max(unpack(car.forces.total))
 
             --set damage state if forces exceed the force values and reset damage duration if not already fading
-            if maxForce > settings.breakforce or maxForce > settings.crackforce then
-                car.damage.state = maxForce > settings.breakforce and 2 or 1
-                if car.damage.duration > 0 and car.damage.fadetimer == settings.fadeduration then
-                    car.damage.duration = settings.damageduration
+            if maxForce > settings.breakForce or maxForce > settings.crackForce then
+                car.damage.state = maxForce > settings.breakForce and 2 or 1
+                if car.damage.duration > 0 and car.damage.fadeTimer == settings.fadeDuration then
+                    car.damage.duration = settings.damageDuration
                 end
             end
         end
 
         if car.damage.state > 0 then
-            if car.damage.duration <= 0 and car.damage.fadetimer == settings.fadeduration then
-                car.damage.duration = settings.damageduration
+            if car.damage.duration <= 0 and car.damage.fadeTimer == settings.fadeDuration then
+                car.damage.duration = settings.damageDuration
             elseif car.damage.duration > 0 then
                 car.damage.duration = car.damage.duration - dt
             end
 
             if car.damage.duration <= 0 then
-                car.damage.fadetimer = car.damage.fadetimer - dt
+                car.damage.fadeTimer = car.damage.fadeTimer - dt
             end
 
-            if car.damage.fadetimer <= 0 then
+            if car.damage.fadeTimer <= 0 then
                 car.damage.state = 0
-                car.damage.fadetimer = settings.fadeduration
+                car.damage.fadeTimer = settings.fadeDuration
             end
         end
 
-        if car.damage.state > 0 and car.damage.fadetimer > 0 then
+        if car.damage.state > 0 and car.damage.fadeTimer > 0 then
             ui.setCursor(vec2(0, 0 + movement.smooth))
             ui.childWindow('DisplayDamage', app.size, flags.window, function()
-                local damageAlpha = ((100 / settings.fadeduration) / 100) * car.damage.fadetimer
+                local damageAlpha = ((100 / settings.fadeDuration) / 100) * car.damage.fadeTimer
 
                 if car.damage.state > 1 then
                     ui.drawImage(phone.src.destroyed, VecTR, VecBL, rgbm(1, 1, 1, damageAlpha))
@@ -860,7 +860,7 @@ function script.windowMain(dt)
 
         if settings.glow then
             if settings.damage and car.damage.state == 2 then
-                car.damage.glow = math.lerpInvSat(((100 / settings.fadeduration) / 100) * car.damage.fadetimer, 1, 0)
+                car.damage.glow = math.lerpInvSat(((100 / settings.fadeDuration) / 100) * car.damage.fadeTimer, 1, 0)
             end
 
             ui.drawImage(phone.src.glow, VecTR, VecBL, rgbm(phone.color.r, phone.color.g, phone.color.b, car.damage.glow))
@@ -870,22 +870,22 @@ function script.windowMain(dt)
     --xtz: not affected by glare/glow because childwindows dont have clickthrough so it cant be moved 'below', not important just a ocd thing
     ui.setCursor(vec2(8, 347 + movement.smooth))
     ui.childWindow('Chatinput', vec2(323, 38), flags.window, function()
-        local chatInputString, chatInputChange, chatInputEnter = ui.inputText('Type new message...', chatInputString, chat.inputflags)
-        chat.activeinput = ui.itemActive()
+        local chatInputString, chatInputChange, chatInputEnter = ui.inputText('Type new message...', chatInputString, chat.inputFlags)
+        chat.activeInput = ui.itemActive()
 
         --there is a cooldown on sending chat messages online
-        if chatInputEnter and chatInputString and not chat.sendcd then
+        if chatInputEnter and chatInputString and not chat.sendCd then
             ac.sendChatMessage(chatInputString)
             ui.setKeyboardFocusHere(-1)
             ui.clearInputCharacters()
 
-            chat.sendcd = true
+            chat.sendCd = true
             --need to add this flag because otherwise the inputbox is emptied even tho clearInputCharacters is not called after pressing enter
-            chat.inputflags = bit.bor(ui.InputTextFlags.Placeholder, ui.InputTextFlags.RetainSelection)
+            chat.inputFlags = bit.bor(ui.InputTextFlags.Placeholder, ui.InputTextFlags.RetainSelection)
 
             setTimeout(function()
-                chat.sendcd = false
-                chat.inputflags = bit.bor(ui.InputTextFlags.Placeholder)
+                chat.sendCd = false
+                chat.inputFlags = bit.bor(ui.InputTextFlags.Placeholder)
             end, 1)
         end
     end)
