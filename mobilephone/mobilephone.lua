@@ -172,13 +172,29 @@ end
 
 setNotifiVolume()
 
-local appFolder = ac.getFolder(ac.FolderID.ACApps) .. '/lua/mobilephone/'
+local appName = 'mobilephone'
+local appFolder = ac.getFolder(ac.FolderID.ACApps) .. '/lua/' .. appName .. '/'
 local manifest = ac.INIConfig.load(appFolder .. '/manifest.ini', ac.INIFormat.Extended)
 local appVersion = manifest:get('ABOUT', 'VERSION', 0.01)
 local releaseURL = 'https://api.github.com/repos/C1XTZ/ac-mobilephone/releases/latest'
 local doUpdate = (os.time() - settings.lastCheck) / 86400 > settings.updateInterval
-local mainFile, assetFile = 'mobilephone.lua', 'mobilephone.zip'
+local mainFile, assetFile = appName .. '.lua', appName .. '.zip'
 --xtz: The ingame updater idea was taken from tuttertep's comfy map app and rewritten to work with my github releases instead of pulling from the entire repository
+--xtz: JSON.parse returns a different json on 0.2.0 for some reason, ill do this for now, might bump recommended version to 0.2.1
+function handle2651(latestRelease)
+    local tagName, releaseAssets, getDownloadUrl
+    if ac.getPatchVersionCode() <= 2651 then
+        tagName = latestRelease.author.tag_name
+        releaseAssets = latestRelease.author.assets
+        getDownloadUrl = function(asset) return asset.uploader.browser_download_url end
+    else
+        tagName = latestRelease.tag_name
+        releaseAssets = latestRelease.assets
+        getDownloadUrl = function(asset) return asset.browser_download_url end
+    end
+    return tagName, releaseAssets, getDownloadUrl
+end
+
 function updateCheckVersion(manual)
     settings.lastCheck = os.time()
 
@@ -190,31 +206,35 @@ function updateCheckVersion(manual)
         end
 
         local latestRelease = JSON.parse(response.body)
-        if not (latestRelease.tag_name and latestRelease.tag_name:match('^v%d%d?%.%d%d?$')) then
-            error('URL unavailable or no Version recognized, aborted update')
+        local tagName, releaseAssets, getDownloadUrl = handle2651(latestRelease)
+
+        if not (tagName and tagName:match('^v%d%d?%.%d%d?$')) then
             settings.updateStatus = 4
+            error('URL unavailable or no Version recognized, aborted update')
             return
         end
-        local version = tonumber(latestRelease.tag_name:sub(2))
+        local version = tonumber(tagName:sub(2))
 
         if appVersion > version then
             settings.updateStatus = 3
+            settings.updateAvailable = false
             return
         elseif appVersion == version then
             settings.updateStatus = 2
+            settings.updateAvailable = false
             return
         else
             local downloadUrl
-            for _, asset in ipairs(latestRelease.assets) do
+            for _, asset in ipairs(releaseAssets) do
                 if asset.name == assetFile then
-                    downloadUrl = asset.browser_download_url
+                    downloadUrl = getDownloadUrl(asset)
                     break
                 end
             end
 
             if not downloadUrl then
-                error('No matching asset found, aborted update')
                 settings.updateStatus = 4
+                error('No matching asset found, aborted update')
                 return
             end
 
@@ -244,7 +264,7 @@ function updateApplyUpdate(downloadUrl)
             if content then
                 local filePath = file:match('(.*)')
                 if filePath then
-                    filePath = filePath:gsub('mobilephone/', '')
+                    filePath = filePath:gsub(appName .. '/', '')
                     if filePath == mainFile then
                         mainFileContent = content
                     else
@@ -462,12 +482,8 @@ function onShowWindow()
     updateTime()
     runUpdate()
 
-    if settings.autoUpdate and doUpdate then
+    if (settings.autoUpdate and doUpdate) or settings.updateAvailable then
         updateCheckVersion()
-    end
-
-    if settings.updateAvailable then
-        sendAppMessage('UPDATE AVAILABLE IN THE SETTINGS!')
     end
 end
 
@@ -480,42 +496,47 @@ function script.windowMainSettings(dt)
     ui.tabBar('TabBar', function()
         if ac.getPatchVersionCode() < 2651 then
             ui.textColored('You are using a version of CSP older than 0.2.0!\nIf anything breaks update to the latest version\n ', rgbm.colors.red)
+            ui.newLine(-25)
         end
-        ui.tabItem('Update', function()
-            ui.text('Currrently running version ' .. appVersion)
-            if ui.checkbox('Automatically Check for Updates', settings.autoUpdate) then
-                settings.autoUpdate = not settings.autoUpdate
-                if settings.autoUpdate then updateCheckVersion() end
-            end
-            if settings.autoUpdate then
-                ui.text('\t')
-                ui.sameLine()
-                settings.updateInterval = ui.slider('##UpdateInterval', settings.updateInterval, 1, 60, 'Check for Update every ' .. '%.0f days')
-            end
-            if ui.button('Get Update') then
-                if settings.updateAvailable then
-                    updateApplyUpdate(settings.updateURL)
-                else
-                    updateCheckVersion(true)
+        if ac.getPatchVersionCode() >= 2651 then
+            ui.tabItem('Update', function()
+                ui.text('Currrently running version ' .. appVersion)
+                if ui.checkbox('Automatically Check for Updates', settings.autoUpdate) then
+                    settings.autoUpdate = not settings.autoUpdate
+                    if settings.autoUpdate then updateCheckVersion() end
                 end
-            end
-            if settings.updateStatus > 0 then
-                ui.textColored(updateStatusTable[settings.updateStatus], updateStatusColor[settings.updateStatus])
-
-                local diff = os.time() - settings.lastCheck
-                if diff > 600 then settings.updateStatus = 0 end
-                local units = { 'seconds', 'minutes', 'hours', 'days' }
-                local values = { 1, 60, 3600, 86400 }
-
-                local i = #values
-                while i > 1 and diff < values[i] do
-                    i = i - 1
+                if settings.autoUpdate then
+                    ui.text('\t')
+                    ui.sameLine()
+                    settings.updateInterval = ui.slider('##UpdateInterval', settings.updateInterval, 1, 60, 'Check for Update every ' .. '%.0f days')
                 end
 
-                local timeAgo = math.floor(diff / values[i])
-                ui.text('Last checked ' .. timeAgo .. ' ' .. units[i] .. ' ago')
-            end
-        end)
+                local updateButtonText = settings.updateAvailable and 'Install Update' or 'Check for Update'
+                if ui.button(updateButtonText) then
+                    if settings.updateAvailable then
+                        updateCheckVersion(true)
+                    else
+                        updateCheckVersion(false)
+                    end
+                end
+                if settings.updateStatus > 0 then
+                    ui.textColored(updateStatusTable[settings.updateStatus], updateStatusColor[settings.updateStatus])
+
+                    local diff = os.time() - settings.lastCheck
+                    if diff > 600 then settings.updateStatus = 0 end
+                    local units = { 'seconds', 'minutes', 'hours', 'days' }
+                    local values = { 1, 60, 3600, 86400 }
+
+                    local i = #values
+                    while i > 1 and diff < values[i] do
+                        i = i - 1
+                    end
+
+                    local timeAgo = math.floor(diff / values[i])
+                    ui.text('Last checked ' .. timeAgo .. ' ' .. units[i] .. ' ago')
+                end
+            end)
+        end
         ui.tabItem('Display', function()
             if ui.checkbox('Custom Color', settings.customColor) then
                 settings.customColor = not settings.customColor
@@ -747,8 +768,8 @@ function script.windowMain(dt)
         ui.drawImage(phone.src.display, VecTR, VecBL, phone.color)
 
         ui.pushDWriteFont(phone.src.fontNoEm)
-        ui.setCursor(vec2(31, 54))
-        ui.dwriteTextAligned(time.final, 16, -1, 0, vec2(60, 18), false, phone.txtColor)
+        ui.setCursor(vec2(31, 52))
+        ui.dwriteTextAligned(time.final, 16, -1, 0, ui.measureDWriteText(time.final, 16), false, phone.txtColor)
         ui.popDWriteFont()
 
         if settings.nowPlaying then
