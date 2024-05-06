@@ -14,9 +14,7 @@ A Mobilephone that displays the ingame chat, time and the current song.
 - **Many adjustable settings to suit your preferences and needs as seen below**
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/preview.gif">
-
-<img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/updater.png"> <img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/displaysettings.png"> <img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/chatsettings.png"> <img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/soundsettings.png">
+<img width="150" src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/updater.png"> <img width="150" src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/displaysettings.png"> <img width="150" src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/preview.gif"> <img width="150" src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/chatsettings.png"> <img width="150" src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/soundsettings.png">
 </p>
 
 # License
