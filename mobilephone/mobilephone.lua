@@ -17,6 +17,7 @@ local settings = ac.storage {
     glare = true,
     glow = true,
     trackTime = false,
+    badTime = false,
     nowPlaying = true,
     spaces = 5,
     scrollSpeed = 2,
@@ -107,7 +108,7 @@ local movement = {
 local time = {
     player = '',
     track = '',
-    final = ''
+    final = '',
 }
 
 local nowPlaying = {
@@ -310,6 +311,22 @@ else
     phone.src.fontNoEm = phone.src.fontNoEm:allowEmoji(false)
 end
 
+function convertTime(timeString)
+    local hour, minute = string.match(timeString, "^(%d+):(%d+)$")
+    hour, minute = tonumber(hour), tonumber(minute)
+    if hour >= 12 then
+        hour = hour % 12
+        if hour == 0 then
+            hour = 12
+        end
+    end
+
+    if hour < 10 then
+        hour = "0" .. hour
+    end
+    return string.format("%s:%02d", hour, minute)
+end
+
 function matchMessage(isPlayer, message)
     if isPlayer then
         local hidePatterns = {
@@ -413,7 +430,7 @@ function scrollText()
     end, 1 / settings.scrollSpeed, 'ST')
 end
 
-function UpdateSpacing()
+function updateSpacing()
     spaceTable = {}
     for i = 0, settings.spaces + 1 do
         spaceTable[i] = ' '
@@ -422,8 +439,8 @@ function UpdateSpacing()
     nowPlaying.FUCK = true
 end
 
-function UpdateSong()
-    if settings.nowPlaying then nowPlaying.final = '   LOADING...' end
+function updateSong()
+    if settings.nowPlaying and ac.currentlyPlaying().artist == nil then nowPlaying.final = '   LOADING...' end
     local currentSong = ac.currentlyPlaying()
     if currentSong.isPlaying and settings.nowPlaying then
         local artistChanged = nowPlaying.artist ~= currentSong.artist
@@ -451,19 +468,24 @@ function UpdateSong()
             scrollInterval = nil
         end
 
-        nowPlaying.isPaused = true
         nowPlaying.length = utf8.len(nowPlaying.pstr)
         nowPlaying.final = nowPlaying.pstr
+        nowPlaying.isPaused = true
     end
 end
 
 function updateTime()
+    time.track = string.format('%02d', ac.getSim().timeHours) .. ':' .. string.format('%02d', ac.getSim().timeMinutes)
+    time.player = os.date('%H:%M')
+
     if settings.trackTime then
-        time.track = string.format('%02d', ac.getSim().timeHours) .. ':' .. string.format('%02d', ac.getSim().timeMinutes)
         time.final = time.track
     else
-        time.player = os.date('%H:%M')
         time.final = time.player
+    end
+
+    if settings.badTime then
+        time.final = convertTime(time.final)
     end
 end
 
@@ -471,7 +493,7 @@ local updateInterval
 function runUpdate()
     updateInterval = setInterval(function()
         updateTime()
-        if settings.nowPlaying then UpdateSong() end
+        if settings.nowPlaying then updateSong() end
     end, 2, 'RU')
 end
 
@@ -574,11 +596,21 @@ function script.windowMainSettings(dt)
 
             if ui.checkbox('Screen Glow', settings.glow) then settings.glow = not settings.glow end
 
+            if ui.checkbox('Use 12h Clock', settings.badTime) then
+                settings.badTime = not settings.badTime
+                updateTime()
+            end
+
+            if ui.checkbox('Use Track Time', settings.trackTime) then
+                settings.trackTime = not settings.trackTime
+                updateTime()
+            end
+
             if ui.checkbox('Show Current Song', settings.nowPlaying) then
                 settings.nowPlaying = not settings.nowPlaying
                 if settings.nowPlaying then
                     nowPlaying.FUCK = true
-                    UpdateSong()
+                    updateSong()
                 else
                     clearInterval(updateInterval)
                     clearInterval(scrollInterval)
@@ -593,7 +625,7 @@ function script.windowMainSettings(dt)
                 ui.sameLine()
                 settings.spaces = ui.slider('##Spaces', settings.spaces, 1, 25, 'Spaces: ' .. '%.0f')
                 if string.len(nowPlaying.spaces) ~= settings.spaces + 1 then
-                    UpdateSpacing()
+                    updateSpacing()
                 end
 
                 ui.text('\t')
@@ -604,11 +636,6 @@ function script.windowMainSettings(dt)
                     scrollInterval = nil
                     scrollText()
                 end
-            end
-
-            if ui.checkbox('Use Track Time', settings.trackTime) then
-                settings.trackTime = not settings.trackTime
-                updateTime()
             end
 
             if ui.checkbox('Screen Damage', settings.damage) then
@@ -766,20 +793,18 @@ function script.windowMain(dt)
     ui.setCursor(vec2(0, 0 + movement.smooth))
     ui.childWindow('Display', app.size, flags.window, function()
         ui.drawImage(phone.src.display, VecTR, VecBL, phone.color)
-
         ui.pushDWriteFont(phone.src.fontNoEm)
         ui.setCursor(vec2(31, 52))
         ui.dwriteTextAligned(time.final, 16, -1, 0, ui.measureDWriteText(time.final, 16), false, phone.txtColor)
         ui.popDWriteFont()
 
         if settings.nowPlaying then
+            ui.setCursor(vec2(91, 54))
             ui.pushDWriteFont(phone.src.fontNoEm)
-            ui.setCursor(vec2(90, 54))
             ui.dwriteTextAligned(nowPlaying.final, 16, -1, 0, vec2(146, 18), false, phone.txtColor)
             ui.popDWriteFont()
         end
     end)
-
     ui.setCursor(vec2(11, 73 + movement.smooth))
     ui.childWindow('Chatbox', chat.size, flags.window, function()
         if #chat.messages > 0 then
@@ -873,6 +898,30 @@ function script.windowMain(dt)
 
     ui.setCursor(vec2(0, 0 + movement.smooth))
     ui.childWindow('DisplayonTopImages', app.size, flags.window, function()
+        if settings.nowPlaying then
+            local nowPlayingHovered = ui.rectHovered(ui.getCursor() + vec2(64, 44), ui.getCursor() + vec2(220, 64))
+            if nowPlayingHovered and ui.mouseClicked(1) then
+                ac.sendChatMessage('Currently listening to: ' .. nowPlaying.artist .. ' - ' .. nowPlaying.title)
+                chat.sendCd = true
+                setTimeout(function()
+                    chat.sendCd = false
+                end, 1)
+            end
+        end
+        local timeHovered = ui.rectHovered(ui.getCursor() + vec2(6, 44), ui.getCursor() + vec2(64, 64))
+        if timeHovered and ui.mouseClicked(1) then
+            if settings.trackTime then
+                ac.sendChatMessage('Current track time: ' .. time.track)
+            else
+                ac.sendChatMessage('Current local time: ' .. time.player)
+            end
+
+            chat.sendCd = true
+            setTimeout(function()
+                chat.sendCd = false
+            end, 1)
+        end
+
         ui.drawImage(phone.src.phone, VecTR, VecBL)
 
         if settings.glare then
