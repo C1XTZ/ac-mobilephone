@@ -7,12 +7,17 @@ A Mobilephone that displays the ingame chat, time and the current song.
 - **Displays Currently Playing Song**
 - **Displays Ingame Chat**
 - **Sound Notifications**
+- **Ingame App Updater**
 - **Screen Breaks on Impacts**
 - **Hides Annoying Messages from other Apps**
     - Example: `PLP: running version 1.21, 2-60-3-True-3.3-0.9-3-2-8-5-0|C1XTZ`
 - **Many adjustable settings to suit your preferences and needs as seen below**
 
-<img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/preview.png">
+<p align="center">
+<img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/preview.gif">
+
+<img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/updater.png"> <img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/displaysettings.png"> <img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/chatsettings.png"> <img src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/soundsettings.png">
+</p>
 
 # License
 This repository is under the [GNU GPL v3](https://choosealicense.com/licenses/gpl-3.0/) license. What does this mean?
@@ -35,6 +40,13 @@ This may seem like a lot, but the general gist is: if you're going to use it, ma
 
 Any questions or suggestions feel free to message me here, on Discord or on Twitter  
 You'll find me under **[@c1xtz](https://discord.com/users/856601560728207371)** and **[@C1XTZ](https://twitter.com/C1XTZ)** respectively
+
+## Shoutouts
+
+- **Ilja and the CSP team** for providing a useable Lua SDK
+- **Cheesymaniac** for initial chat functionality, smoother phone movement, color picker and general help with CSP Lua
+- **Tuttertep** for letting me use and rewrite her comfymap updater
+- **Eurobeat** for being my beta tester
 
 # Credits
 * [Nokia Cellphone FC Small](https://www.dafont.com/nokia-cellphone.font)
