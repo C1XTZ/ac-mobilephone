@@ -396,17 +396,20 @@ end)
 if settings.joinNotif then
     local function connectionHandler(connectedCarIndex, action)
         local isFriend = checkIfFriend(connectedCarIndex)
-        if settings.joinNotifFriends and not isFriend then return end
+        if settings.joinNotifFriends and not isFriend
+        then
+            return
+        else
+            table.insert(chat.messages, { action .. ' the Server', ac.getDriverName(connectedCarIndex) .. ' ', isFriend and '* ' or '', os.time() })
 
-        table.insert(chat.messages, { action .. ' the Server', ac.getDriverName(connectedCarIndex) .. ' ', isFriend and '* ' or '', os.time() })
+            if isFriend or (settings.joinNotifSound and not settings.joinNotifSoundFriends) then
+                notification.allow = true
+            end
 
-        if isFriend or (settings.joinNotifSound and not settings.joinNotifSoundFriends) then
-            notification.allow = true
-        end
-
-        if settings.chatMove then
-            movement.timer = settings.chatTimer
-            movement.up = true
+            if settings.chatMove then
+                movement.timer = settings.chatTimer
+                movement.up = true
+            end
         end
     end
 
@@ -813,19 +816,14 @@ function script.windowMain(dt)
             end
 
             for i = 1, #chat.messages do
-                if i == #chat.messages and settings.chatBold then
+                if (i == #chat.messages and settings.chatBold) or string.find(string.lower(chat.messages[i][1]), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then
                     ui.pushDWriteFont(phone.src.fontBold)
-                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
-                    ui.popDWriteFont()
-                elseif string.find(string.lower(chat.messages[i][1]), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then
-                    ui.pushDWriteFont(phone.src.fontBold)
-                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
-                    ui.popDWriteFont()
                 else
                     ui.pushDWriteFont(phone.src.font)
-                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
-                    ui.popDWriteFont()
                 end
+
+                ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
+                ui.popDWriteFont()
                 if not phoneHovered then ui.setScrollHereY(1) end
             end
         end
