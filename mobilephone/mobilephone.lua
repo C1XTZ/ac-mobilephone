@@ -32,9 +32,7 @@ local settings = ac.storage {
     chatFontSize = 16,
     chatBold = false,
     customColor = false,
-    colorR = 0.640,
-    colorG = 1.000,
-    colorB = 0.710,
+    displayColor = rgb(0.64, 1, 0.71),
     hideKB = true,
     hideAnnoy = true,
     notifSound = false,
@@ -43,9 +41,7 @@ local settings = ac.storage {
     joinNotifSound = false,
     joinNotifFriends = true,
     joinNotifSoundFriends = false,
-    txtColorR = 0,
-    txtColorB = 0,
-    txtColorG = 0,
+    txtColor = rgb(0),
     alwaysNotif = false,
     enableSound = true,
     lastCheck = 0,
@@ -84,8 +80,9 @@ local phone = {
         fontBold = ui.DWriteFont('NOKIA CELLPHONE FC SMALL', './src'):weight(ui.DWriteFont.Weight.SemiBold),
     },
     size = vec2(245, 409),
-    color = rgbm(0.64, 1.0, 0.71, 1),
-    txtColor = rgbm(0, 0, 0, 1),
+    displayColor = rgb(0.64, 1.0, 0.71),
+    defaultDisplayColor = rgb(0.64, 1.0, 0.71),
+    txtColor = rgb(0),
 }
 
 local chat = {
@@ -93,6 +90,7 @@ local chat = {
     messages = {},
     activeInput = false,
     sendCd = false,
+    scrollBool = false,
     inputFlags = bit.bor(ui.InputTextFlags.Placeholder)
 }
 
@@ -147,7 +145,7 @@ local car = {
 
 local flags = {
     window = bit.bor(ui.WindowFlags.NoDecoration, ui.WindowFlags.NoBackground, ui.WindowFlags.NoNav, ui.WindowFlags.NoInputs),
-    color = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.NoSidePreview, ui.ColorPickerFlags.NoDragDrop, ui.ColorPickerFlags.NoLabel, ui.ColorPickerFlags.DisplayRGB)
+    color = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.NoSidePreview, ui.ColorPickerFlags.NoDragDrop, ui.ColorPickerFlags.NoLabel, ui.ColorPickerFlags.DisplayRGB, ui.ColorPickerFlags.NoSmallPreview)
 }
 
 local updateStatusTable = {
@@ -316,14 +314,10 @@ function convertTime(timeString)
     hour, minute = tonumber(hour), tonumber(minute)
     if hour >= 12 then
         hour = hour % 12
-        if hour == 0 then
-            hour = 12
-        end
+        if hour == 0 then hour = 12 end
     end
 
-    if hour < 10 then
-        hour = "0" .. hour
-    end
+    if hour < 10 then hour = "0" .. hour end
     return string.format("%s:%02d", hour, minute)
 end
 
@@ -384,25 +378,32 @@ ac.onChatMessage(function(message, senderCarIndex)
 
     if not hideMessage and message:len() > 0 then
         table.insert(chat.messages, { message, isPlayer and ac.getDriverName(senderCarIndex) .. ': ' or '', isFriend and '* ' or '', os.time() })
+
         if settings.chatMove then
             movement.timer = settings.chatTimer
             movement.up = true
         end
 
-        if isMentioned or settings.alwaysNotif then notification.allow = true end
+        if settings.enableSound and (isMentioned or settings.alwaysNotif) then notification.allow = true end
+
+        if senderCarIndex == car.player.index then
+            chat.scrollBool = true
+            setTimeout(function()
+                chat.scrollBool = false
+            end, 0.1)
+        end
     end
 end)
 
 if settings.joinNotif then
     local function connectionHandler(connectedCarIndex, action)
         local isFriend = checkIfFriend(connectedCarIndex)
-        if settings.joinNotifFriends and not isFriend
-        then
+        if settings.joinNotifFriends and not isFriend then
             return
         else
             table.insert(chat.messages, { action .. ' the Server', ac.getDriverName(connectedCarIndex) .. ' ', isFriend and '* ' or '', os.time() })
 
-            if isFriend or (settings.joinNotifSound and not settings.joinNotifSoundFriends) then
+            if settings.enableSound and ((not settings.joinNotifSoundFriends or isFriend) or settings.alwaysNotif) then
                 notification.allow = true
             end
 
@@ -459,9 +460,7 @@ function updateSong()
             local isUnknownArtist = string.lower(nowPlaying.artist) == 'unknown artist'
             nowPlaying.scroll = isUnknownArtist and (nowPlaying.title .. nowPlaying.spaces) or (nowPlaying.artist .. ' - ' .. nowPlaying.title .. nowPlaying.spaces)
 
-            if utf8.len(nowPlaying.scroll) < 19 then
-                nowPlaying.scroll = nowPlaying.scroll .. string.rep(' ', 19 - utf8.len(nowPlaying.scroll))
-            end
+            if utf8.len(nowPlaying.scroll) < 19 then nowPlaying.scroll = nowPlaying.scroll .. string.rep(' ', 19 - utf8.len(nowPlaying.scroll)) end
 
             nowPlaying.length = utf8.len(nowPlaying.scroll)
         end
@@ -481,15 +480,9 @@ function updateTime()
     time.track = string.format('%02d', ac.getSim().timeHours) .. ':' .. string.format('%02d', ac.getSim().timeMinutes)
     time.player = os.date('%H:%M')
 
-    if settings.trackTime then
-        time.final = time.track
-    else
-        time.final = time.player
-    end
+    if settings.trackTime then time.final = time.track else time.final = time.player end
 
-    if settings.badTime then
-        time.final = convertTime(time.final)
-    end
+    if settings.badTime then time.final = convertTime(time.final) end
 end
 
 local updateInterval
@@ -507,14 +500,12 @@ function onShowWindow()
     updateTime()
     runUpdate()
 
-    if (settings.autoUpdate and doUpdate) or settings.updateAvailable then
-        updateCheckVersion()
-    end
+    if (settings.autoUpdate and doUpdate) or settings.updateAvailable then updateCheckVersion() end
 end
 
 if settings.customColor then
-    phone.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
-    phone.txtColor = rgbm(settings.txtColorR, settings.txtColorG, settings.txtColorB, 1)
+    phone.displayColor:set(settings.displayColor)
+    phone.txtColor:set(settings.txtColor)
 end
 
 function script.windowMainSettings(dt)
@@ -523,13 +514,16 @@ function script.windowMainSettings(dt)
             ui.textColored('You are using a version of CSP older than 0.2.0!\nIf anything breaks update to the latest version\n ', rgbm.colors.red)
             ui.newLine(-25)
         end
+
         if ac.getPatchVersionCode() >= 2651 then
             ui.tabItem('Update', function()
                 ui.text('Currrently running version ' .. appVersion)
+
                 if ui.checkbox('Automatically Check for Updates', settings.autoUpdate) then
                     settings.autoUpdate = not settings.autoUpdate
                     if settings.autoUpdate then updateCheckVersion() end
                 end
+
                 if settings.autoUpdate then
                     ui.text('\t')
                     ui.sameLine()
@@ -537,13 +531,8 @@ function script.windowMainSettings(dt)
                 end
 
                 local updateButtonText = settings.updateAvailable and 'Install Update' or 'Check for Update'
-                if ui.button(updateButtonText) then
-                    if settings.updateAvailable then
-                        updateCheckVersion(true)
-                    else
-                        updateCheckVersion(false)
-                    end
-                end
+                if ui.button(updateButtonText) then updateCheckVersion(settings.updateAvailable) end
+
                 if settings.updateStatus > 0 then
                     ui.textColored(updateStatusTable[settings.updateStatus], updateStatusColor[settings.updateStatus])
 
@@ -562,36 +551,51 @@ function script.windowMainSettings(dt)
                 end
             end)
         end
+
         ui.tabItem('Display', function()
             if ui.checkbox('Custom Color', settings.customColor) then
+                ac.debug('phone.defaultDisplayColor', phone.defaultDisplayColor)
                 settings.customColor = not settings.customColor
-                --reset to default color if disabled
+
                 if not settings.customColor then
-                    phone.color = rgbm(0.640, 1.000, 0.710, 1)
-                    phone.txtColor = rgbm(0, 0, 0, 1)
+                    phone.displayColor = phone.defaultDisplayColor:clone()
+                    phone.txtColor = rgb(0)
+                else
+                    phone.displayColor = settings.displayColor
+                    phone.txtColor = settings.txtColor
                 end
             end
 
             if settings.customColor then
                 ui.text('\t')
                 ui.sameLine()
-                ui.text('Display Color Picker')
+                ui.text('Display Color')
+
+                ui.sameLine()
+                ui.setCursorX(276)
+                ui.text('Text Color')
+
                 ui.text('\t')
                 ui.sameLine()
-                phone.color = rgbm(settings.colorR, settings.colorG, settings.colorB, 1)
-                colorChange = ui.colorPicker('Display Color Picker', phone.color, flags.color)
-                if colorChange then
-                    settings.colorR, settings.colorG, settings.colorB = phone.color.r, phone.color.g, phone.color.b
+                local displayColorChange = ui.colorPicker('Display Color Picker', phone.displayColor, flags.color)
+                if displayColorChange then settings.displayColor = phone.displayColor end
+
+                ui.sameLine()
+                local txtColorChange = ui.colorPicker('Text Color Picker', phone.txtColor, flags.color)
+                if txtColorChange then settings.txtColor = phone.txtColor end
+
+                ui.text('\t')
+                ui.sameLine()
+                if ui.button('Reset Display Color') then
+                    phone.displayColor = phone.defaultDisplayColor:clone()
+                    settings.displayColor = phone.defaultDisplayColor:clone()
                 end
-                ui.text('\t')
+
                 ui.sameLine()
-                ui.text('Text Color Picker')
-                ui.text('\t')
-                ui.sameLine()
-                phone.txtColor = rgbm(settings.txtColorR, settings.txtColorG, settings.txtColorB, 1)
-                colorChange = ui.colorPicker('Text Color Picker', phone.txtColor, flags.color)
-                if colorChange then
-                    settings.txtColorR, settings.txtColorG, settings.txtColorB = phone.txtColor.r, phone.txtColor.g, phone.txtColor.b
+                ui.setCursorX(276)
+                if ui.button('Reset Text Color') then
+                    phone.txtColor = rgb(0)
+                    settings.txtColor = rgb(0)
                 end
             end
 
@@ -627,9 +631,7 @@ function script.windowMainSettings(dt)
                 ui.text('\t')
                 ui.sameLine()
                 settings.spaces = ui.slider('##Spaces', settings.spaces, 1, 25, 'Spaces: ' .. '%.0f')
-                if string.len(nowPlaying.spaces) ~= settings.spaces + 1 then
-                    updateSpacing()
-                end
+                if string.len(nowPlaying.spaces) ~= settings.spaces + 1 then updateSpacing() end
 
                 ui.text('\t')
                 ui.sameLine()
@@ -671,18 +673,22 @@ function script.windowMainSettings(dt)
             ui.text('\t')
             ui.sameLine()
             settings.chatFontSize = ui.slider('##ChatFontSize', settings.chatFontSize, 6, 36, 'Chat Fontsize: ' .. '%.0f')
+
             ui.text('\t')
             ui.sameLine()
             settings.chatScrollSpeed = ui.slider('##ChatScrollSpeed', settings.chatScrollSpeed, 1, 10, 'Chat Scroll Speed: ' .. '%.0f')
+
             if ui.checkbox('Chat History Settings', settings.chatPurge) then settings.chatPurge = not settings.chatPurge end
             if settings.chatPurge then
                 ui.text('\t')
                 ui.sameLine()
                 settings.chatKeepSize = ui.slider('##ChatKeepSize', settings.chatKeepSize, 10, 500, 'Always keep %.0f Messages')
+
                 ui.text('\t')
                 ui.sameLine()
                 settings.chatOlderThan = ui.slider('##ChatOlderThan', settings.chatOlderThan, 1, 60, 'Remove excess if older than %.0f min')
             end
+
             if ui.checkbox('Show Join/Leave Messages', settings.joinNotif) then settings.joinNotif = not settings.joinNotif end
             if settings.joinNotif then
                 ui.text('\t')
@@ -698,6 +704,7 @@ function script.windowMainSettings(dt)
 
             if ui.checkbox('Chat Inactivity Minimizes Phone', settings.chatMove) then
                 settings.chatMove = not settings.chatMove
+
                 if settings.chatMove then
                     movement.up = false
                     movement.timer = settings.chatTimer
@@ -709,6 +716,7 @@ function script.windowMainSettings(dt)
                 ui.sameLine()
                 settings.chatTimer, chatinactiveChange = ui.slider('##ChatTimer', settings.chatTimer, 1, 120, 'Inactivity: ' .. '%.0f seconds')
                 if chatinactiveChange then movement.timer = settings.chatTimer end
+
                 ui.text('\t')
                 ui.sameLine()
                 settings.chatMoveSpeed = ui.slider('##ChatMoveSpeed', settings.chatMoveSpeed, 1, 20, 'Speed: ' .. '%.0f')
@@ -722,21 +730,20 @@ function script.windowMainSettings(dt)
                 ui.sameLine()
                 settings.notifVolume, volumeChange = ui.slider('##SoundVolume', settings.notifVolume, 1, 100, 'Sound Volume: ' .. '%.0f' .. '%')
                 if volumeChange then setNotifiVolume() end
-                ui.sameLine()
-                if ui.button('Play') then
-                    notification.sound:play()
-                end
 
-                if ui.checkbox('Play Notification Sound for Join/Leave Messages', settings.joinNotifSound) then settings.joinNotifSound = not settings.joinNotifSound end
-                if settings.joinNotifSound then
-                    ui.text('\t')
-                    ui.sameLine()
-                    if ui.checkbox('Only Play for Friends', settings.joinNotifSoundFriends) then settings.joinNotifSoundFriends = not settings.joinNotifSoundFriends end
-                end
+                ui.sameLine()
+                if ui.button('Play') then notification.sound:play() end
 
                 if ui.checkbox('Play Notification Sound for all Messages', settings.alwaysNotif) then settings.alwaysNotif = not settings.alwaysNotif end
 
                 if not settings.alwaysNotif then
+                    if ui.checkbox('Play Notification Sound for Join/Leave Messages', settings.joinNotifSound) then settings.joinNotifSound = not settings.joinNotifSound end
+                    if settings.joinNotifSound then
+                        ui.text('\t')
+                        ui.sameLine()
+                        if ui.checkbox('Only Play for Friends', settings.joinNotifSoundFriends) then settings.joinNotifSoundFriends = not settings.joinNotifSoundFriends end
+                    end
+
                     if ui.checkbox('Play Notification Sound when Mentioned', settings.notifSound) then settings.notifSound = not settings.notifSound end
                 end
             end
@@ -788,14 +795,12 @@ function script.windowMain(dt)
         if settings.enableSound and (notification.allow and not notification.sound:playing()) then
             notification.sound:play()
             notification.allow = false
-        else
-            notification.allow = false
         end
     end
 
     ui.setCursor(vec2(0, 0 + movement.smooth))
     ui.childWindow('Display', app.size, flags.window, function()
-        ui.drawImage(phone.src.display, VecTR, VecBL, phone.color)
+        ui.drawImage(phone.src.display, VecTR, VecBL, phone.displayColor)
         ui.pushDWriteFont(phone.src.fontNoEm)
         ui.setCursor(vec2(31, 52))
         ui.dwriteTextAligned(time.final, 16, -1, 0, ui.measureDWriteText(time.final, 16), false, phone.txtColor)
@@ -811,9 +816,7 @@ function script.windowMain(dt)
     ui.setCursor(vec2(11, 73 + movement.smooth))
     ui.childWindow('Chatbox', chat.size, flags.window, function()
         if #chat.messages > 0 then
-            if #chat.messages > settings.chatKeepSize and isMessageOld(chat.messages[1]) then
-                table.remove(chat.messages, 1)
-            end
+            if #chat.messages > settings.chatKeepSize and isMessageOld(chat.messages[1]) then table.remove(chat.messages, 1) end
 
             for i = 1, #chat.messages do
                 if (i == #chat.messages and settings.chatBold) or string.find(string.lower(chat.messages[i][1]), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then
@@ -824,7 +827,7 @@ function script.windowMain(dt)
 
                 ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
                 ui.popDWriteFont()
-                if not phoneHovered then ui.setScrollHereY(1) end
+                if not phoneHovered or chat.scrollBool then ui.setScrollHereY(1) end
             end
         end
 
@@ -906,6 +909,7 @@ function script.windowMain(dt)
                 end, 1)
             end
         end
+
         local timeHovered = ui.rectHovered(ui.getCursor() + vec2(6, 44), ui.getCursor() + vec2(64, 64))
         if timeHovered and ui.mouseClicked(1) then
             if settings.trackTime then
@@ -931,7 +935,7 @@ function script.windowMain(dt)
                 car.damage.glow = math.lerpInvSat(((100 / settings.fadeDuration) / 100) * car.damage.fadeTimer, 1, 0)
             end
 
-            ui.drawImage(phone.src.glow, VecTR, VecBL, rgbm(phone.color.r, phone.color.g, phone.color.b, car.damage.glow))
+            ui.drawImage(phone.src.glow, VecTR, VecBL, phone.displayColor:rgbm(car.damage.glow))
         end
     end)
 
