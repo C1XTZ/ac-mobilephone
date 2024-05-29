@@ -91,7 +91,8 @@ local chat = {
     activeInput = false,
     sendCd = false,
     scrollBool = false,
-    inputFlags = bit.bor(ui.InputTextFlags.Placeholder)
+    inputFlags = bit.bor(ui.InputTextFlags.Placeholder),
+    mentioned = '',
 }
 
 local movement = {
@@ -554,7 +555,6 @@ function script.windowMainSettings(dt)
 
         ui.tabItem('Display', function()
             if ui.checkbox('Custom Color', settings.customColor) then
-                ac.debug('phone.defaultDisplayColor', phone.defaultDisplayColor)
                 settings.customColor = not settings.customColor
 
                 if not settings.customColor then
@@ -826,7 +826,21 @@ function script.windowMain(dt)
                 end
 
                 ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
+
+                local dwriteSize = ui.measureDWriteText(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, 200)
                 ui.popDWriteFont()
+
+                local cursorPos = vec2(ui.getCursorX(), ui.getCursorY() - dwriteSize.y) - vec2(1, 3)
+                local senderUserName = chat.messages[i][2]:sub(1, -3)
+
+                if chat.messages[i][2] ~= '' and senderUserName ~= ac.getDriverName(0) then
+                    local messageHovered = {}
+                    messageHovered[i] = ui.rectHovered(cursorPos, cursorPos + dwriteSize, true)
+                    if messageHovered[i] and ui.mouseClicked(1) then
+                        chat.mentioned = '@' .. senderUserName .. ", "
+                    end
+                end
+
                 if not phoneHovered or chat.scrollBool then ui.setScrollHereY(1) end
             end
         end
@@ -942,15 +956,19 @@ function script.windowMain(dt)
     --xtz: not affected by glare/glow because childwindows dont have clickthrough so it cant be moved 'below', not important just a ocd thing
     ui.setCursor(vec2(8, 347 + movement.smooth))
     ui.childWindow('Chatinput', vec2(323, 38), flags.window, function()
-        local chatInputString, chatInputChange, chatInputEnter = ui.inputText('Type new message...', chatInputString, chat.inputFlags)
+        local chatInputString, chatInputChange, chatInputEnter = '', _, _
+        chatInputString = chat.mentioned .. chatInputString
+        chatInputString, chatInputChange, chatInputEnter = ui.inputText('Type new message', chatInputString, chat.inputFlags)
+
         chat.activeInput = ui.itemActive()
+        if chat.mentioned ~= '' and chatInputString ~= chat.mentioned then chat.mentioned = '' end
 
         --there is a cooldown on sending chat messages online
         if chatInputEnter and chatInputString and not chat.sendCd then
             ac.sendChatMessage(chatInputString)
             ui.setKeyboardFocusHere(-1)
             ui.clearInputCharacters()
-
+            chat.mentioned = ''
             chat.sendCd = true
             --need to add this flag because otherwise the inputbox is emptied even tho clearInputCharacters is not called after pressing enter
             chat.inputFlags = bit.bor(ui.InputTextFlags.Placeholder, ui.InputTextFlags.RetainSelection)
