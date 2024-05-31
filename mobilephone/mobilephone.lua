@@ -399,9 +399,7 @@ end)
 if settings.joinNotif then
     local function connectionHandler(connectedCarIndex, action)
         local isFriend = checkIfFriend(connectedCarIndex)
-        if settings.joinNotifFriends and not isFriend then
-            return
-        else
+        if settings.joinNotif and not settings.joinNotifFriends or isFriend then
             table.insert(chat.messages, { action .. ' the Server', ac.getDriverName(connectedCarIndex) .. ' ', isFriend and '* ' or '', os.time() })
 
             if settings.enableSound and ((not settings.joinNotifSoundFriends or isFriend) or settings.alwaysNotif) then
@@ -833,9 +831,15 @@ function script.windowMain(dt)
                 ui.popDWriteFont()
 
                 local cursorPos = vec2(ui.getCursorX(), ui.getCursorY() - dwriteSize.y) - vec2(1, 3)
-                local senderUserName = chat.messages[i][2]:sub(1, -3)
+                local senderUserName = chat.messages[i][2]
 
-                if chat.messages[i][2] ~= '' and senderUserName ~= ac.getDriverName(0) then
+                if string.endsWith(senderUserName, ": ") then
+                    senderUserName = string.sub(senderUserName, 1, #senderUserName - 2)
+                elseif string.endsWith(senderUserName, " ") then
+                    senderUserName = string.sub(senderUserName, 1, #senderUserName - 1)
+                end
+
+                if senderUserName ~= '' and senderUserName ~= ac.getDriverName(0) then
                     local messageHovered = {}
                     messageHovered[i] = ui.rectHovered(cursorPos, cursorPos + dwriteSize, true)
                     if messageHovered[i] and ui.mouseClicked(1) then
