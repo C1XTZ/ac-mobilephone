@@ -116,7 +116,7 @@ local nowPlaying = {
     scroll = '',
     final = '',
     length = 0,
-    pstr = '    PAUSE ll',
+    pstr = '   PAUSED ll',
     isPaused = false,
     spaces = table.concat(spaceTable),
     FUCK = false
@@ -445,9 +445,9 @@ function updateSpacing()
 end
 
 function updateSong()
-    if settings.nowPlaying and ac.currentlyPlaying().artist == nil then nowPlaying.final = '   LOADING...' end
+    if ac.currentlyPlaying().artist == nil then nowPlaying.final = '   LOADING...' end
     local currentSong = ac.currentlyPlaying()
-    if currentSong.isPlaying and settings.nowPlaying then
+    if currentSong.isPlaying then
         local artistChanged = nowPlaying.artist ~= currentSong.artist
         local titleChanged = nowPlaying.title ~= currentSong.title
 
@@ -465,15 +465,17 @@ function updateSong()
 
             nowPlaying.length = utf8.len(nowPlaying.scroll)
         end
-    elseif not currentSong.isPlaying and not nowPlaying.isPaused and settings.nowPlaying and nowPlaying.artist ~= '' then
-        if scrollInterval then
-            clearInterval(scrollInterval)
-            scrollInterval = nil
-        end
+    else
+        if nowPlaying.artist ~= '' then
+            if scrollInterval then
+                clearInterval(scrollInterval)
+                scrollInterval = nil
+            end
 
-        nowPlaying.length = utf8.len(nowPlaying.pstr)
-        nowPlaying.final = nowPlaying.pstr
-        nowPlaying.isPaused = true
+            nowPlaying.length = utf8.len(nowPlaying.pstr)
+            nowPlaying.final = nowPlaying.pstr
+            nowPlaying.isPaused = true
+        end
     end
 end
 
@@ -837,7 +839,7 @@ function script.windowMain(dt)
                     local messageHovered = {}
                     messageHovered[i] = ui.rectHovered(cursorPos, cursorPos + dwriteSize, true)
                     if messageHovered[i] and ui.mouseClicked(1) then
-                        chat.mentioned = '@' .. senderUserName .. ", "
+                        chat.mentioned = '@' .. senderUserName .. " "
                     end
                 end
 
