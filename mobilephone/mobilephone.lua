@@ -359,9 +359,12 @@ function matchMessage(isPlayer, message)
     return false
 end
 
-function isMessageOld(message)
-    local messageTime = message[4]
-    return os.time() - messageTime > (settings.chatOlderThan * 60)
+function deleteOldestMessages()
+    if #chat.messages > 0 then
+        while #chat.messages > settings.chatKeepSize and os.time() - chat.messages[1][4] > (settings.chatOlderThan * 60) do
+            table.remove(chat.messages, 1)
+        end
+    end
 end
 
 ac.onChatMessage(function(message, senderCarIndex)
@@ -378,6 +381,7 @@ ac.onChatMessage(function(message, senderCarIndex)
     end
 
     if not hideMessage and message:len() > 0 then
+        deleteOldestMessages()
         table.insert(chat.messages, { message, isPlayer and ac.getDriverName(senderCarIndex) .. ': ' or '', isFriend and '* ' or '', os.time() })
 
         if settings.chatMove then
@@ -400,6 +404,7 @@ if settings.joinNotif then
     local function connectionHandler(connectedCarIndex, action)
         local isFriend = checkIfFriend(connectedCarIndex)
         if settings.joinNotif and not settings.joinNotifFriends or isFriend then
+            deleteOldestMessages()
             table.insert(chat.messages, { action .. ' the Server', ac.getDriverName(connectedCarIndex) .. ' ', isFriend and '* ' or '', os.time() })
 
             if settings.enableSound and ((not settings.joinNotifSoundFriends or isFriend) or settings.alwaysNotif) then
@@ -816,8 +821,6 @@ function script.windowMain(dt)
     ui.setCursor(vec2(11, 73 + movement.smooth))
     ui.childWindow('Chatbox', chat.size, flags.window, function()
         if #chat.messages > 0 then
-            if #chat.messages > settings.chatKeepSize and isMessageOld(chat.messages[1]) then table.remove(chat.messages, 1) end
-
             for i = 1, #chat.messages do
                 if (i == #chat.messages and settings.chatBold) or string.find(string.lower(chat.messages[i][1]), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then
                     ui.pushDWriteFont(phone.src.fontBold)
