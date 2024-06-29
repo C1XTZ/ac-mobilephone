@@ -4,14 +4,63 @@
 --che: you dont really need this since you're loading only a few images at the start
 ui.setAsynchronousImagesLoading(true)
 
---xtz: adding this so unicode characters like kanji dont break while scrolling
---xtz: had to add a -1 to nowPlaying.length and a +1 to settings.spaces because otherwise the function complains about a nil value for j and im too lazy to fix this
-require 'src.utf8'
-function utf8.sub(s, i, j)
-    i = utf8.offset(s, i)
-    j = utf8.offset(s, j + 1) - 1
-    return string.sub(s, i, j)
+--#region UTF8 HANDLING
+
+--xtz: adding these so unicode characters like kanji dont break while scrolling
+function utf8len(s)
+    local len = 0
+    local i = 1
+
+    while i <= #s do
+        len = len + 1
+        local c = s:byte(i)
+        if c >= 0xF0 then
+            i = i + 4
+        elseif c >= 0xE0 then
+            i = i + 3
+        elseif c >= 0xC0 then
+            i = i + 2
+        else
+            i = i + 1
+        end
+    end
+
+    return len
 end
+
+function utf8sub(s, i, j)
+    j = j or -1
+    local pos = 1
+    local bytes = s:len()
+    local len = 0
+
+    local l = (i >= 0 and j >= 0) or utf8len(s)
+    local startChar = (i >= 0) and i or l + i + 1
+    local endChar = (j >= 0) and j or l + j + 1
+
+    if startChar > endChar then return '' end
+
+    local startByte, endByte = 1, bytes
+
+    while pos <= bytes do
+        len = len + 1
+
+        if len == startChar then startByte = pos end
+        pos = pos + (s:byte(pos) >= 0xF0 and 4 or
+            s:byte(pos) >= 0xE0 and 3 or
+            s:byte(pos) >= 0xC0 and 2 or 1)
+        if len == endChar then
+            endByte = pos - 1
+            break
+        end
+    end
+
+    return s:sub(startByte, endByte)
+end
+
+--#endregion
+
+--#region APP SETTINGS
 
 local settings = ac.storage {
     glare = true,
@@ -21,6 +70,7 @@ local settings = ac.storage {
     nowPlaying = true,
     spaces = 5,
     scrollSpeed = 2,
+    scrollDirection = 1,
     damage = false,
     damageDuration = 5,
     fadeDuration = 3,
@@ -57,7 +107,7 @@ local settings = ac.storage {
 }
 
 local spaceTable = {}
-for i = 0, settings.spaces + 1 do
+for i = 0, settings.spaces do
     spaceTable[i] = ' '
 end
 
@@ -123,12 +173,14 @@ local nowPlaying = {
 }
 
 local notification = {
-    sound = ui.MediaPlayer():setSource('notif.mp3'):setAutoPlay(false):setLooping(false),
+    sound = ui.MediaPlayer():setSource('./src/notif.mp3'):setAutoPlay(false):setLooping(false),
     allow = false
 }
 
 local car = {
     player = ac.getCar(0),
+    playerName = ac.getDriverName(0),
+    online = ac.getSim().isOnlineRace,
     damage = {
         state = 0,
         duration = 0,
@@ -171,6 +223,15 @@ function setNotifiVolume()
 end
 
 setNotifiVolume()
+
+if settings.customColor then
+    phone.displayColor:set(settings.displayColor)
+    phone.txtColor:set(settings.txtColor)
+end
+
+--#endregion
+
+--#region APP UPDATER
 
 local appName = 'mobilephone'
 local appFolder = ac.getFolder(ac.FolderID.ACApps) .. '/lua/' .. appName .. '/'
@@ -250,12 +311,53 @@ function updateCheckVersion(manual)
     end)
 end
 
+local function scanDirRecursive(directory)
+    local function scan(dir, fileList)
+        local files = io.scanDir(dir)
+        for _, file in ipairs(files) do
+            if file ~= '.' and file ~= '..' then
+                local fullPath = dir .. '/' .. file
+                local attributes = io.getAttributes(fullPath)
+                if attributes.isDirectory then
+                    scan(fullPath, fileList)
+                else
+                    table.insert(fileList, fullPath)
+                end
+            end
+        end
+    end
+
+    local fileList = {}
+    scan(directory, fileList)
+    return fileList
+end
+
 function updateApplyUpdate(downloadUrl)
     web.get(downloadUrl, function(downloadErr, downloadResponse)
         if downloadErr then
             settings.updateStatus = 4
-            error(downloadErr)
+            error('Error downloading update: ' .. downloadErr)
             return
+        end
+
+        local updatedFiles = {}
+
+        for _, file in ipairs(io.scanZip(downloadResponse.body)) do
+            local content = io.loadFromZip(downloadResponse.body, file)
+            if content then
+                local filePath = file:match('(.*)')
+                if filePath then
+                    filePath = filePath:gsub(appName .. '/', '')
+                    if filePath ~= mainFile then
+                        if io.save(appFolder .. '/' .. filePath, content) then
+                            print('Updating: ' .. filePath)
+                            updatedFiles[filePath] = true
+                        else
+                            print('Failed to update: ' .. filePath)
+                        end
+                    end
+                end
+            end
         end
 
         local mainFileContent
@@ -267,21 +369,88 @@ function updateApplyUpdate(downloadUrl)
                     filePath = filePath:gsub(appName .. '/', '')
                     if filePath == mainFile then
                         mainFileContent = content
-                    else
-                        if io.save(appFolder .. filePath, content) then print('Updating: ' .. file) end
+                        break
                     end
                 end
             end
         end
 
+        local currentFiles = scanDirRecursive(appFolder)
+
+        for _, file in ipairs(currentFiles) do
+            local relativePath = file:sub(#appFolder + 2)
+            if not updatedFiles[relativePath] then
+                if io.deleteFile(file) then
+                    print('Removing: ' .. relativePath)
+                else
+                    settings.updateStatus = 4
+                    error('Failed to remove: ' .. file)
+                end
+            end
+        end
+
         if mainFileContent then
-            if io.save(appFolder .. mainFile, mainFileContent) then print('Updating: ' .. mainFile) end
+            if io.save(appFolder .. '/' .. mainFile, mainFileContent) then
+                print('Updating: ' .. mainFile)
+                updatedFiles[mainFile] = true
+            else
+                settings.updateStatus = 4
+                error('Failed to update: ' .. mainFile)
+            end
         end
 
         settings.updateStatus = 1
         settings.updateAvailable = false
         settings.updateURL = ''
     end)
+end
+
+--#endregion
+
+--#region APP FUNCTIONS
+
+function updateChatMovement(dt)
+    if settings.chatMove then
+        if movement.timer > 0 and movement.distance == 0 then
+            movement.timer = movement.timer - dt
+            movement.down = true
+        end
+
+        if movement.timer <= 0 and movement.down then
+            movement.down = true
+            movement.distance = math.floor(movement.distance + dt * 100 * settings.chatMoveSpeed)
+            movement.smooth = math.floor(math.smootherstep(math.lerpInvSat(movement.distance, 0, movement.maxDistance)) * movement.maxDistance)
+        elseif movement.timer > 0 and movement.up then
+            movement.distance = math.floor(movement.distance - dt * 100 * settings.chatMoveSpeed)
+            movement.smooth = math.floor(math.smootherstep(math.lerpInvSat(movement.distance, 0, movement.maxDistance)) * movement.maxDistance)
+        end
+
+        if movement.distance > movement.maxDistance then
+            movement.distance = movement.maxDistance
+            movement.down = false
+        elseif movement.distance < 0 then
+            movement.distance = 0
+            movement.up = false
+            movement.timer = settings.chatTimer
+        end
+    elseif not settings.chatMove and movement.distance ~= 0 then
+        movement.distance = 0
+        movement.smooth = 0
+    end
+end
+
+function moveChatUp()
+    if settings.chatMove then
+        movement.timer = settings.chatTimer
+        movement.up = true
+    end
+end
+
+function playNotificationSound()
+    if settings.enableSound and notification.allow and not notification.sound:playing() then
+        notification.sound:play()
+        notification.allow = false
+    end
 end
 
 function sendAppMessage(message)
@@ -291,10 +460,7 @@ function sendAppMessage(message)
         table.remove(chat.messages, msgIndex)
     end, 30)
 
-    if settings.chatMove then
-        movement.timer = settings.chatTimer
-        movement.up = true
-    end
+    moveChatUp()
 end
 
 if ac.getPatchVersionCode() < 2651 then
@@ -311,18 +477,21 @@ else
 end
 
 function convertTime(timeString)
-    local hour, minute = string.match(timeString, "^(%d+):(%d+)$")
+    local hour, minute = string.match(timeString, '^(%d+):(%d+)$')
     hour, minute = tonumber(hour), tonumber(minute)
     if hour >= 12 then
         hour = hour % 12
         if hour == 0 then hour = 12 end
     end
 
-    if hour < 10 then hour = "0" .. hour end
-    return string.format("%s:%02d", hour, minute)
+    if hour < 10 then hour = '0' .. hour end
+    return string.format('%s:%02d', hour, minute)
 end
 
 function matchMessage(isPlayer, message)
+    local lowerMessage = string.lower(message)
+    local lowerPlayerName = string.lower(car.playerName)
+
     if isPlayer then
         local hidePatterns = {
             '^RP: App not running$',
@@ -331,6 +500,7 @@ function matchMessage(isPlayer, message)
             '^D&O Racing APP:',
             '^DRIFT%%%-STRUCTION POINTS:',
             '^OSRW Race Admin Version:',
+            '^RSRC Race Admin',
         }
 
         for _, pattern in ipairs(hidePatterns) do
@@ -343,14 +513,19 @@ function matchMessage(isPlayer, message)
             'kicked',
             'banned',
             'checksums',
+            'teleported to pits',
         }
 
         for _, reason in ipairs(hidePatterns) do
-            if string.find(string.lower(message), '(' .. string.lower(reason) .. ')') then
-                if string.find(string.lower(message), '%f[%a_](you)%f[%A_]') then
+            if string.find(lowerMessage, reason) then
+                if string.find(lowerMessage, lowerPlayerName) then
                     notification.allow = true
                 else
-                    return true
+                    if string.find(lowerMessage, "^you") or string.find(lowerMessage, "^it is currently night") then
+                        notification.allow = true
+                    else
+                        return true
+                    end
                 end
             end
         end
@@ -360,87 +535,49 @@ function matchMessage(isPlayer, message)
 end
 
 function deleteOldestMessages()
-    if #chat.messages > 0 then
-        while #chat.messages > settings.chatKeepSize and os.time() - chat.messages[1][4] > (settings.chatOlderThan * 60) do
-            table.remove(chat.messages, 1)
+    local currentTime = os.time()
+    local index = 1
+    while index <= #chat.messages do
+        if #chat.messages > settings.chatKeepSize and
+            currentTime - chat.messages[index][4] > (settings.chatOlderThan * 10) then
+            table.remove(chat.messages, index)
+        else
+            index = index + 1
         end
     end
-end
-
-ac.onChatMessage(function(message, senderCarIndex)
-    local escapedMessage = string.gsub(message, '([%(%)%.%%%+%-%*%?%[%]%^%$])', '%%%1')
-    local isPlayer = senderCarIndex > -1
-    local isFriend = isPlayer and checkIfFriend(senderCarIndex)
-    local isMentioned = settings.notifSound and string.find(string.lower(escapedMessage), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]')
-    local hideMessage = false
-
-    if isPlayer then
-        hideMessage = matchMessage(isPlayer, escapedMessage) and settings.hideAnnoy
-    else
-        hideMessage = matchMessage(isPlayer, escapedMessage) and settings.hideKB
-    end
-
-    if not hideMessage and message:len() > 0 then
-        deleteOldestMessages()
-        table.insert(chat.messages, { message, isPlayer and ac.getDriverName(senderCarIndex) .. ': ' or '', isFriend and '* ' or '', os.time() })
-
-        if settings.chatMove then
-            movement.timer = settings.chatTimer
-            movement.up = true
-        end
-
-        if settings.enableSound and (isMentioned or settings.alwaysNotif) then notification.allow = true end
-
-        if senderCarIndex == car.player.index then
-            chat.scrollBool = true
-            setTimeout(function()
-                chat.scrollBool = false
-            end, 0.1)
-        end
-    end
-end)
-
-if settings.joinNotif then
-    local function connectionHandler(connectedCarIndex, action)
-        local isFriend = checkIfFriend(connectedCarIndex)
-        if settings.joinNotif and not settings.joinNotifFriends or isFriend then
-            deleteOldestMessages()
-            table.insert(chat.messages, { action .. ' the Server', ac.getDriverName(connectedCarIndex) .. ' ', isFriend and '* ' or '', os.time() })
-
-            if settings.enableSound and ((not settings.joinNotifSoundFriends or isFriend) or settings.alwaysNotif) then
-                notification.allow = true
-            end
-
-            if settings.chatMove then
-                movement.timer = settings.chatTimer
-                movement.up = true
-            end
-        end
-    end
-
-    ac.onClientConnected(function(connectedCarIndex)
-        connectionHandler(connectedCarIndex, 'joined')
-    end)
-
-    ac.onClientDisconnected(function(connectedCarIndex)
-        connectionHandler(connectedCarIndex, 'left')
-    end)
 end
 
 local scrollInterval
 function scrollText()
     scrollInterval = setInterval(function()
-        local nLetter = utf8.sub(nowPlaying.scroll, nowPlaying.length - 1, nowPlaying.length - 1)
-        local nString = utf8.sub(nowPlaying.scroll, 1, nowPlaying.length - 1)
-        local nText = nLetter .. nString
-        nowPlaying.scroll = nText
-        nowPlaying.final = nText
+        local firstLetter, restString, scrolledText
+
+        if settings.scrollDirection == 0 then
+            firstLetter = utf8sub(nowPlaying.scroll, 1, 1)
+            restString = utf8sub(nowPlaying.scroll, 2)
+            scrolledText = restString .. firstLetter
+        else
+            firstLetter = utf8sub(nowPlaying.scroll, nowPlaying.length, nowPlaying.length)
+            restString = utf8sub(nowPlaying.scroll, 1, nowPlaying.length - 1)
+            scrolledText = firstLetter .. restString
+        end
+
+        nowPlaying.scroll = scrolledText
+        nowPlaying.final = scrolledText
     end, 1 / settings.scrollSpeed, 'ST')
+end
+
+local updateInterval
+function runUpdate()
+    updateInterval = setInterval(function()
+        updateTime()
+        if settings.nowPlaying then updateSong() end
+    end, 2, 'RU')
 end
 
 function updateSpacing()
     spaceTable = {}
-    for i = 0, settings.spaces + 1 do
+    for i = 0, settings.spaces do
         spaceTable[i] = ' '
     end
     nowPlaying.spaces = table.concat(spaceTable)
@@ -464,9 +601,9 @@ function updateSong()
             local isUnknownArtist = string.lower(nowPlaying.artist) == 'unknown artist'
             nowPlaying.scroll = isUnknownArtist and (nowPlaying.title .. nowPlaying.spaces) or (nowPlaying.artist .. ' - ' .. nowPlaying.title .. nowPlaying.spaces)
 
-            if utf8.len(nowPlaying.scroll) < 19 then nowPlaying.scroll = nowPlaying.scroll .. string.rep(' ', 19 - utf8.len(nowPlaying.scroll)) end
+            if utf8len(nowPlaying.scroll) < 19 then nowPlaying.scroll = nowPlaying.scroll .. string.rep(' ', 19 - utf8len(nowPlaying.scroll)) end
 
-            nowPlaying.length = utf8.len(nowPlaying.scroll)
+            nowPlaying.length = utf8len(nowPlaying.scroll)
         end
     else
         if nowPlaying.artist ~= '' then
@@ -475,7 +612,7 @@ function updateSong()
                 scrollInterval = nil
             end
 
-            nowPlaying.length = utf8.len(nowPlaying.pstr)
+            nowPlaying.length = utf8len(nowPlaying.pstr)
             nowPlaying.final = nowPlaying.pstr
             nowPlaying.isPaused = true
         end
@@ -491,13 +628,9 @@ function updateTime()
     if settings.badTime then time.final = convertTime(time.final) end
 end
 
-local updateInterval
-function runUpdate()
-    updateInterval = setInterval(function()
-        updateTime()
-        if settings.nowPlaying then updateSong() end
-    end, 2, 'RU')
-end
+--#endregion
+
+--#region APP EVENTS
 
 function onShowWindow()
     if settings.nowPlaying then nowPlaying.final = '   LOADING...' end
@@ -505,14 +638,62 @@ function onShowWindow()
     nowPlaying.isPaused = false
     updateTime()
     runUpdate()
-
     if (settings.autoUpdate and doUpdate) or settings.updateAvailable then updateCheckVersion() end
 end
 
-if settings.customColor then
-    phone.displayColor:set(settings.displayColor)
-    phone.txtColor:set(settings.txtColor)
+ac.onChatMessage(function(message, senderCarIndex)
+    local escapedMessage = string.gsub(message, '([%(%)%.%%%+%-%*%?%[%]%^%$])', '%%%1')
+    local isPlayer = senderCarIndex > -1
+    local isFriend = isPlayer and checkIfFriend(senderCarIndex)
+    local isMentioned = settings.notifSound and string.find(string.lower(escapedMessage), '%f[%a_]' .. string.lower(car.playerName) .. '%f[%A_]')
+    local hideMessage = false
+
+    if isPlayer then
+        hideMessage = matchMessage(isPlayer, escapedMessage) and settings.hideAnnoy
+    else
+        hideMessage = matchMessage(isPlayer, escapedMessage) and settings.hideKB
+    end
+
+    if not hideMessage and message:len() > 0 then
+        deleteOldestMessages()
+        table.insert(chat.messages, { message, isPlayer and ac.getDriverName(senderCarIndex) .. ': ' or '', isFriend and '* ' or '', os.time() })
+        moveChatUp()
+
+        if settings.enableSound and (isMentioned or settings.alwaysNotif) then notification.allow = true end
+
+        if senderCarIndex == car.player.index then
+            chat.scrollBool = true
+            setTimeout(function() chat.scrollBool = false end, 0.1)
+        end
+    end
+end)
+
+if settings.joinNotif then
+    local function connectionHandler(connectedCarIndex, action)
+        local isFriend = checkIfFriend(connectedCarIndex)
+        if settings.joinNotif and not settings.joinNotifFriends or isFriend then
+            deleteOldestMessages()
+            table.insert(chat.messages, { action .. ' the Server', ac.getDriverName(connectedCarIndex) .. ' ', isFriend and '* ' or '', os.time() })
+            moveChatUp()
+
+            if settings.enableSound and ((not settings.joinNotifSoundFriends or isFriend) or settings.alwaysNotif) then
+                notification.allow = true
+            end
+        end
+    end
+
+    ac.onClientConnected(function(connectedCarIndex)
+        connectionHandler(connectedCarIndex, 'joined')
+    end)
+
+    ac.onClientDisconnected(function(connectedCarIndex)
+        connectionHandler(connectedCarIndex, 'left')
+    end)
 end
+
+--#endregion
+
+--#region APP SETTINGS WINDOW
 
 function script.windowMainSettings(dt)
     ui.tabBar('TabBar', function()
@@ -541,7 +722,6 @@ function script.windowMainSettings(dt)
 
                 if settings.updateStatus > 0 then
                     ui.textColored(updateStatusTable[settings.updateStatus], updateStatusColor[settings.updateStatus])
-
                     local diff = os.time() - settings.lastCheck
                     if diff > 600 then settings.updateStatus = 0 end
                     local units = { 'seconds', 'minutes', 'hours', 'days' }
@@ -561,7 +741,6 @@ function script.windowMainSettings(dt)
         ui.tabItem('Display', function()
             if ui.checkbox('Custom Color', settings.customColor) then
                 settings.customColor = not settings.customColor
-
                 if not settings.customColor then
                     phone.displayColor = phone.defaultDisplayColor:clone()
                     phone.txtColor = rgb(0)
@@ -575,16 +754,13 @@ function script.windowMainSettings(dt)
                 ui.text('\t')
                 ui.sameLine()
                 ui.text('Display Color')
-
                 ui.sameLine()
                 ui.setCursorX(276)
                 ui.text('Text Color')
-
                 ui.text('\t')
                 ui.sameLine()
                 local displayColorChange = ui.colorPicker('Display Color Picker', phone.displayColor, flags.color)
                 if displayColorChange then settings.displayColor = phone.displayColor end
-
                 ui.sameLine()
                 local txtColorChange = ui.colorPicker('Text Color Picker', phone.txtColor, flags.color)
                 if txtColorChange then settings.txtColor = phone.txtColor end
@@ -636,7 +812,7 @@ function script.windowMainSettings(dt)
                 ui.text('\t')
                 ui.sameLine()
                 settings.spaces = ui.slider('##Spaces', settings.spaces, 1, 25, 'Spaces: ' .. '%.0f')
-                if string.len(nowPlaying.spaces) ~= settings.spaces + 1 then updateSpacing() end
+                if string.len(nowPlaying.spaces) ~= settings.spaces then updateSpacing() end
 
                 ui.text('\t')
                 ui.sameLine()
@@ -646,6 +822,11 @@ function script.windowMainSettings(dt)
                     scrollInterval = nil
                     scrollText()
                 end
+
+                ui.text('\t')
+                ui.sameLine()
+                local scrollDirStr = (settings.scrollDirection == 0) and 'Left' or 'Right'
+                settings.scrollDirection = ui.slider('##ScrollDirection', settings.scrollDirection, 0, 1, 'Scroll Direction: ' .. scrollDirStr, true)
             end
 
             if ui.checkbox('Screen Damage', settings.damage) then
@@ -709,7 +890,6 @@ function script.windowMainSettings(dt)
 
             if ui.checkbox('Chat Inactivity Minimizes Phone', settings.chatMove) then
                 settings.chatMove = not settings.chatMove
-
                 if settings.chatMove then
                     movement.up = false
                     movement.timer = settings.chatTimer
@@ -735,7 +915,6 @@ function script.windowMainSettings(dt)
                 ui.sameLine()
                 settings.notifVolume, volumeChange = ui.slider('##SoundVolume', settings.notifVolume, 1, 100, 'Sound Volume: ' .. '%.0f' .. '%')
                 if volumeChange then setNotifiVolume() end
-
                 ui.sameLine()
                 if ui.button('Play') then notification.sound:play() end
 
@@ -756,51 +935,21 @@ function script.windowMainSettings(dt)
     end)
 end
 
+--#endregion
+
+--#region APP MAIN WINDOW
+
 local VecTR = vec2(app.padding.x, phone.size.y - phone.size.y - app.padding.y)
 local VecBL = vec2(phone.size.x + app.padding.x, phone.size.y - app.padding.y)
 function script.windowMain(dt)
-    if settings.chatMove then
-        if movement.timer > 0 and movement.distance == 0 then
-            movement.timer = movement.timer - dt
-            movement.down = true
-        end
-
-        if movement.timer <= 0 and movement.down then
-            movement.down = true
-            movement.distance = math.floor(movement.distance + dt * 100 * settings.chatMoveSpeed)
-            movement.smooth = math.floor(math.smootherstep(math.lerpInvSat(movement.distance, 0, movement.maxDistance)) * movement.maxDistance)
-        elseif movement.timer > 0 and movement.up then
-            movement.distance = math.floor(movement.distance - dt * 100 * settings.chatMoveSpeed)
-            movement.smooth = math.floor(math.smootherstep(math.lerpInvSat(movement.distance, 0, movement.maxDistance)) * movement.maxDistance)
-            --che: the entire thing doesnt work if I don't make it a new variable. I have idea why and I am far too tired to sit and work it out for another 2 hours
-            --xtz: it seems to work, so im not touching it
-        end
-
-        if movement.distance > movement.maxDistance then
-            movement.distance = movement.maxDistance
-            movement.down = false
-        elseif movement.distance < 0 then
-            movement.distance = 0
-            movement.up = false
-            movement.timer = settings.chatTimer
-        end
-    elseif not settings.chatMove and movement.distance ~= 0 then
-        movement.distance = 0
-        movement.smooth = 0
-    end
+    updateChatMovement(dt)
 
     local phoneHovered = ui.rectHovered(0, app.size)
-    if settings.chatMove and (phoneHovered or chat.activeInput) then
-        movement.timer = settings.chatTimer
-        movement.up = true
-    end
+    if (phoneHovered or chat.activeInput) then moveChatUp() end
 
     if settings.notifSound or settings.joinNotifSound then
         if notification.sound:playing() and notification.sound:ended() then notification.sound:pause() end
-        if settings.enableSound and (notification.allow and not notification.sound:playing()) then
-            notification.sound:play()
-            notification.allow = false
-        end
+        playNotificationSound()
     end
 
     ui.setCursor(vec2(0, 0 + movement.smooth))
@@ -818,35 +967,35 @@ function script.windowMain(dt)
             ui.popDWriteFont()
         end
     end)
+
     ui.setCursor(vec2(11, 73 + movement.smooth))
     ui.childWindow('Chatbox', chat.size, flags.window, function()
         if #chat.messages > 0 then
             for i = 1, #chat.messages do
-                if (i == #chat.messages and settings.chatBold) or string.find(string.lower(chat.messages[i][1]), '%f[%a_]' .. string.lower(ac.getDriverName(0)) .. '%f[%A_]') then
+                if (i == #chat.messages and settings.chatBold) or string.find(string.lower(chat.messages[i][1]), '%f[%a_]' .. string.lower(car.playerName) .. '%f[%A_]') then
                     ui.pushDWriteFont(phone.src.fontBold)
                 else
                     ui.pushDWriteFont(phone.src.font)
                 end
 
                 ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
-
                 local dwriteSize = ui.measureDWriteText(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, 200)
                 ui.popDWriteFont()
 
                 local cursorPos = vec2(ui.getCursorX(), ui.getCursorY() - dwriteSize.y) - vec2(1, 3)
                 local senderUserName = chat.messages[i][2]
 
-                if string.endsWith(senderUserName, ": ") then
+                if string.endsWith(senderUserName, ': ') then
                     senderUserName = string.sub(senderUserName, 1, #senderUserName - 2)
-                elseif string.endsWith(senderUserName, " ") then
+                elseif string.endsWith(senderUserName, ' ') then
                     senderUserName = string.sub(senderUserName, 1, #senderUserName - 1)
                 end
 
-                if senderUserName ~= '' and senderUserName ~= ac.getDriverName(0) then
+                if phoneHovered and senderUserName ~= '' and senderUserName ~= car.playerName then
                     local messageHovered = {}
                     messageHovered[i] = ui.rectHovered(cursorPos, cursorPos + dwriteSize, true)
-                    if messageHovered[i] and ui.mouseClicked(1) then
-                        chat.mentioned = '@' .. senderUserName .. " "
+                    if messageHovered[i] and ui.mouseClicked(ui.MouseButton.Right) then
+                        chat.mentioned = '@' .. senderUserName .. ' '
                     end
                 end
 
@@ -875,7 +1024,6 @@ function script.windowMain(dt)
             --add all the forces together and calculate the mean value then insert them into a table
             local totalForce = (car.forces.front + car.forces.back + car.forces.left + car.forces.right) / 2
             table.insert(car.forces.total, totalForce)
-
             local maxForce = math.max(unpack(car.forces.total))
 
             --set damage state if forces exceed the force values and reset damage duration if not already fading
@@ -922,29 +1070,34 @@ function script.windowMain(dt)
 
     ui.setCursor(vec2(0, 0 + movement.smooth))
     ui.childWindow('DisplayonTopImages', app.size, flags.window, function()
-        if settings.nowPlaying then
-            local nowPlayingHovered = ui.rectHovered(ui.getCursor() + vec2(64, 44), ui.getCursor() + vec2(220, 64))
-            if nowPlayingHovered and ui.mouseClicked(1) then
-                ac.sendChatMessage('Currently listening to: ' .. nowPlaying.artist .. ' - ' .. nowPlaying.title)
-                chat.sendCd = true
-                setTimeout(function()
-                    chat.sendCd = false
-                end, 1)
-            end
-        end
-
-        local timeHovered = ui.rectHovered(ui.getCursor() + vec2(6, 44), ui.getCursor() + vec2(64, 64))
-        if timeHovered and ui.mouseClicked(1) then
-            if settings.trackTime then
-                ac.sendChatMessage('Current track time: ' .. time.track)
-            else
-                ac.sendChatMessage('Current local time: ' .. time.player)
+        if phoneHovered then
+            if settings.nowPlaying then
+                local nowPlayingHovered = ui.rectHovered(ui.getCursor() + vec2(64, 44), ui.getCursor() + vec2(220, 64))
+                if nowPlayingHovered then
+                    if ui.mouseClicked(ui.MouseButton.Right) and car.online then
+                        ac.sendChatMessage('Currently listening to: ' .. nowPlaying.artist .. ' - ' .. nowPlaying.title)
+                        chat.sendCd = true
+                        setTimeout(function() chat.sendCd = false end, 1)
+                    elseif ui.mouseClicked(ui.MouseButton.left) and not nowPlaying.isPaused then
+                        settings.scrollDirection = 1 - settings.scrollDirection
+                        clearInterval(scrollInterval)
+                        scrollInterval = nil
+                        scrollText()
+                    end
+                end
             end
 
-            chat.sendCd = true
-            setTimeout(function()
-                chat.sendCd = false
-            end, 1)
+            local timeHovered = ui.rectHovered(ui.getCursor() + vec2(6, 44), ui.getCursor() + vec2(64, 64))
+            if timeHovered then
+                if ui.mouseClicked(ui.MouseButton.Right) and car.online then
+                    ac.sendChatMessage(settings.trackTime and 'Current track time: ' .. time.track or 'Current local time: ' .. time.player)
+                    chat.sendCd = true
+                    setTimeout(function() chat.sendCd = false end, 1)
+                elseif ui.mouseClicked(ui.MouseButton.Left) then
+                    settings.trackTime = not settings.trackTime
+                    updateTime()
+                end
+            end
         end
 
         ui.drawImage(phone.src.phone, VecTR, VecBL)
@@ -965,27 +1118,31 @@ function script.windowMain(dt)
     --xtz: not affected by glare/glow because childwindows dont have clickthrough so it cant be moved 'below', not important just a ocd thing
     ui.setCursor(vec2(8, 347 + movement.smooth))
     ui.childWindow('Chatinput', vec2(323, 38), flags.window, function()
-        local chatInputString, chatInputChange, chatInputEnter = '', _, _
-        chatInputString = chat.mentioned .. chatInputString
-        chatInputString, chatInputChange, chatInputEnter = ui.inputText('Type new message', chatInputString, chat.inputFlags)
+        local chatLabelString, chatInputString, chatInputChange, chatInputEnter = 'Type new message...', chat.mentioned .. '', _, _
+        if not car.online then
+            chatLabelString = 'Must be online to send message'
+            chat.inputFlags = bit.bor(chat.inputFlags, ui.InputTextFlags.ReadOnly)
+        end
 
+        chatInputString, chatInputChange, chatInputEnter = ui.inputText(chatLabelString, chatInputString, chat.inputFlags)
         chat.activeInput = ui.itemActive()
         if chat.mentioned ~= '' and chatInputString ~= chat.mentioned then chat.mentioned = '' end
-
         --there is a cooldown on sending chat messages online
-        if chatInputEnter and chatInputString and not chat.sendCd then
+        if car.online and chatInputEnter and chatInputString and not chat.sendCd then
             ac.sendChatMessage(chatInputString)
             ui.setKeyboardFocusHere(-1)
             ui.clearInputCharacters()
             chat.mentioned = ''
             chat.sendCd = true
             --need to add this flag because otherwise the inputbox is emptied even tho clearInputCharacters is not called after pressing enter
-            chat.inputFlags = bit.bor(ui.InputTextFlags.Placeholder, ui.InputTextFlags.RetainSelection)
+            chat.inputFlags = bit.bor(chat.inputFlags, ui.InputTextFlags.RetainSelection)
 
             setTimeout(function()
                 chat.sendCd = false
-                chat.inputFlags = bit.bor(ui.InputTextFlags.Placeholder)
+                chat.inputFlags = bit.band(chat.inputFlags, bit.bnot(ui.InputTextFlags.RetainSelection))
             end, 1)
         end
     end)
 end
+
+--#endregion
