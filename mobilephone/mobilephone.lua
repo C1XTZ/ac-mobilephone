@@ -104,6 +104,7 @@ local settings = ac.storage {
     chatKeepSize = 50,
     chatOlderThan = 15,
     chatScrollSpeed = 2,
+    forceBottom = true,
 }
 
 local spaceTable = {}
@@ -628,6 +629,19 @@ function updateTime()
     if settings.badTime then time.final = convertTime(time.final) end
 end
 
+local appWindow = ac.accessAppWindow("IMGUI_LUA_Mobilephone_main")
+local windowHeight, appBottom
+function forceAppToBottom()
+    if not appWindow:valid() then return end
+
+    windowHeight = ac.getSim().windowHeight
+    appBottom = windowHeight - appWindow:size().y
+
+    if appWindow:position().y ~= appBottom and not ui.isMouseDragging(ui.MouseButton.Left, 0) then
+        appWindow:move(vec2(appWindow:position().x, appBottom))
+    end
+end
+
 --#endregion
 
 --#region APP EVENTS
@@ -739,6 +753,12 @@ function script.windowMainSettings(dt)
         end
 
         ui.tabItem('Display', function()
+            if ac.getPatchVersionCode() >= 3044 then
+                if ui.checkbox('Force App to Bottom', settings.forceBottom) then settings.forceBottom = not settings.forceBottom end
+            else
+                settings.forceBottom = false
+            end
+
             if ui.checkbox('Custom Color', settings.customColor) then
                 settings.customColor = not settings.customColor
                 if not settings.customColor then
@@ -942,9 +962,10 @@ end
 local VecTR = vec2(app.padding.x, phone.size.y - phone.size.y - app.padding.y)
 local VecBL = vec2(phone.size.x + app.padding.x, phone.size.y - app.padding.y)
 function script.windowMain(dt)
+    if settings.forceBottom then forceAppToBottom() end
     updateChatMovement(dt)
 
-    local phoneHovered = ui.rectHovered(0, app.size)
+    local phoneHovered = ui.windowHovered(ui.HoveredFlags.ChildWindows)
     if (phoneHovered or chat.activeInput) then moveChatUp() end
 
     if settings.notifSound or settings.joinNotifSound then
