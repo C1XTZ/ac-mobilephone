@@ -161,6 +161,7 @@ local nowPlaying = {
     final = '',
     length = 0,
     pstr = '   PAUSED ll',
+    lstr = '   LOADING...',
     isPaused = false,
     spaces = string.rep(" ", settings.spaces),
     FUCK = false
@@ -575,7 +576,7 @@ function updateSpacing()
 end
 
 function updateSong()
-    if ac.currentlyPlaying().artist == nil then nowPlaying.final = '   LOADING...' end
+    if ac.currentlyPlaying().artist == nil then nowPlaying.final = nowPlaying.lstr end
     local currentSong = ac.currentlyPlaying()
     if currentSong.isPlaying then
         local artistChanged = nowPlaying.artist ~= currentSong.artist
@@ -632,9 +633,13 @@ end
 --#region APP EVENTS
 
 function onShowWindow()
-    if settings.nowPlaying then nowPlaying.final = '   LOADING...' end
-    nowPlaying.FUCK = true
-    nowPlaying.isPaused = false
+    if settings.nowPlaying then
+        nowPlaying.final = nowPlaying.lstr
+        nowPlaying.FUCK = true
+        nowPlaying.isPaused = false
+        updateSong()
+    end
+
     updateTime()
     runUpdate()
     if (settings.autoUpdate and doUpdate) or settings.updateAvailable then updateCheckVersion() end
@@ -740,8 +745,6 @@ function script.windowMainSettings(dt)
         ui.tabItem('Display', function()
             if ac.getPatchVersionCode() >= 3044 then
                 if ui.checkbox('Force App to Bottom', settings.forceBottom) then settings.forceBottom = not settings.forceBottom end
-            else
-                settings.forceBottom = false
             end
 
             if ui.checkbox('Custom Color', settings.customColor) then
@@ -805,10 +808,16 @@ function script.windowMainSettings(dt)
                     nowPlaying.FUCK = true
                     updateSong()
                 else
-                    clearInterval(updateInterval)
-                    clearInterval(scrollInterval)
-                    updateInterval = nil
-                    scrollInterval = nil
+                    if updateInterval then
+                        clearInterval(updateInterval)
+                        updateInterval = nil
+                    end
+
+                    if scrollInterval then
+                        clearInterval(scrollInterval)
+                        scrollInterval = nil
+                    end
+
                     runUpdate()
                 end
             end
@@ -823,8 +832,11 @@ function script.windowMainSettings(dt)
                 ui.sameLine()
                 settings.scrollSpeed, speedChange = ui.slider('##ScrollSpeed', settings.scrollSpeed, 0, 15, 'Scroll Speed: ' .. '%.1f')
                 if speedChange and not nowPlaying.isPaused then
-                    clearInterval(scrollInterval)
-                    scrollInterval = nil
+                    if scrollInterval then
+                        clearInterval(scrollInterval)
+                        scrollInterval = nil
+                    end
+
                     scrollText()
                 end
 
@@ -947,7 +959,7 @@ end
 local VecTR = vec2(app.padding.x, phone.size.y - phone.size.y - app.padding.y)
 local VecBL = vec2(phone.size.x + app.padding.x, phone.size.y - app.padding.y)
 function script.windowMain(dt)
-    if settings.forceBottom then forceAppToBottom() end
+    if ac.getPatchVersionCode() >= 3044 and settings.forceBottom then forceAppToBottom() end
     updateChatMovement(dt)
 
     local phoneHovered = ui.windowHovered(ui.HoveredFlags.ChildWindows)
@@ -1086,8 +1098,11 @@ function script.windowMain(dt)
                         setTimeout(function() chat.sendCd = false end, 1)
                     elseif ui.mouseClicked(ui.MouseButton.left) and not nowPlaying.isPaused then
                         settings.scrollDirection = 1 - settings.scrollDirection
-                        clearInterval(scrollInterval)
-                        scrollInterval = nil
+                        if scrollInterval then
+                            clearInterval(scrollInterval)
+                            scrollInterval = nil
+                        end
+
                         scrollText()
                     end
                 end
