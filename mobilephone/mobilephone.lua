@@ -107,11 +107,6 @@ local settings = ac.storage {
     forceBottom = true,
 }
 
-local spaceTable = {}
-for i = 0, settings.spaces do
-    spaceTable[i] = ' '
-end
-
 local app = {
     size = vec2(265, 435),
     padding = vec2(10, -22),
@@ -169,7 +164,7 @@ local nowPlaying = {
     length = 0,
     pstr = '   PAUSED ll',
     isPaused = false,
-    spaces = table.concat(spaceTable),
+    spaces = string.rep(" ", settings.spaces),
     FUCK = false
 }
 
@@ -577,11 +572,7 @@ function runUpdate()
 end
 
 function updateSpacing()
-    spaceTable = {}
-    for i = 0, settings.spaces do
-        spaceTable[i] = ' '
-    end
-    nowPlaying.spaces = table.concat(spaceTable)
+    nowPlaying.spaces = string.rep(" ", settings.spaces)
     nowPlaying.FUCK = true
 end
 
@@ -832,7 +823,7 @@ function script.windowMainSettings(dt)
                 ui.text('\t')
                 ui.sameLine()
                 settings.spaces = ui.slider('##Spaces', settings.spaces, 1, 25, 'Spaces: ' .. '%.0f')
-                if string.len(nowPlaying.spaces) ~= settings.spaces then updateSpacing() end
+                if nowPlaying.spaces ~= string.rep(" ", settings.spaces) then updateSpacing() end
 
                 ui.text('\t')
                 ui.sameLine()
