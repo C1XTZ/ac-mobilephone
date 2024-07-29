@@ -151,9 +151,7 @@ local movement = {
 }
 
 local time = {
-    player = '',
-    track = '',
-    final = '',
+    final = ''
 }
 
 local nowPlaying = {
@@ -472,7 +470,7 @@ else
     phone.src.fontNoEm = phone.src.fontNoEm:allowEmoji(false)
 end
 
-function convertTime(timeString)
+function to12hTime(timeString)
     local hour, minute = string.match(timeString, '^(%d+):(%d+)$')
     hour, minute = tonumber(hour), tonumber(minute)
     if hour >= 12 then
@@ -593,7 +591,7 @@ function updateSong()
             local isUnknownArtist = string.lower(nowPlaying.artist) == 'unknown artist'
             nowPlaying.scroll = isUnknownArtist and (nowPlaying.title .. nowPlaying.spaces) or (nowPlaying.artist .. ' - ' .. nowPlaying.title .. nowPlaying.spaces)
 
-            if utf8len(nowPlaying.scroll) < 19 then nowPlaying.scroll = nowPlaying.scroll .. string.rep(' ', 19 - utf8len(nowPlaying.scroll)) end
+            if utf8len(nowPlaying.scroll) < 20 then nowPlaying.scroll = nowPlaying.scroll .. string.rep(' ', 20 - utf8len(nowPlaying.scroll)) end
 
             nowPlaying.length = utf8len(nowPlaying.scroll)
         end
@@ -612,12 +610,8 @@ function updateSong()
 end
 
 function updateTime()
-    time.track = string.format('%02d', ac.getSim().timeHours) .. ':' .. string.format('%02d', ac.getSim().timeMinutes)
-    time.player = os.date('%H:%M')
-
-    if settings.trackTime then time.final = time.track else time.final = time.player end
-
-    if settings.badTime then time.final = convertTime(time.final) end
+    local currentTime = settings.trackTime and (string.format('%02d', ac.getSim().timeHours) .. ':' .. string.format('%02d', ac.getSim().timeMinutes)) or os.date("%H:%M")
+    time.final = settings.badTime and to12hTime(currentTime) or currentTime
 end
 
 local appWindow = ac.accessAppWindow("IMGUI_LUA_Mobilephone_main")
