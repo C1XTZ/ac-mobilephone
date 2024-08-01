@@ -151,7 +151,9 @@ local movement = {
 }
 
 local time = {
-    final = ''
+    final = '',
+    period = '',
+    interval = nil,
 }
 
 local nowPlaying = {
@@ -161,10 +163,14 @@ local nowPlaying = {
     final = '',
     length = 0,
     pstr = '   PAUSED ll',
-    lstr = '   LOADING...',
+    lstr = '   LOADING',
     isPaused = false,
-    spaces = string.rep(" ", settings.spaces),
-    FUCK = false
+    isLoading = false,
+    spaces = '',
+    loadingDots = 0,
+    loadingInterval = nil,
+    scrollInterval = nil,
+    updateInterval = nil
 }
 
 local notification = {
@@ -471,21 +477,9 @@ else
     phone.src.fontNoEm = phone.src.fontNoEm:allowEmoji(false)
 end
 
-function to12hTime(timeString)
-    local hour, minute = string.match(timeString, '^(%d+):(%d+)$')
-    hour, minute = tonumber(hour), tonumber(minute)
-    if hour >= 12 then
-        hour = hour % 12
-        if hour == 0 then hour = 12 end
-    end
-
-    if hour < 10 then hour = '0' .. hour end
-    return string.format('%s:%02d', hour, minute)
-end
-
 function matchMessage(isPlayer, message)
-    local lowerMessage = string.lower(message)
-    local lowerPlayerName = string.lower(car.playerName)
+    local lowerMessage = message:lower()
+    local lowerPlayerName = car.playerName:lower()
 
     if isPlayer then
         local hidePatterns = {
@@ -499,7 +493,7 @@ function matchMessage(isPlayer, message)
         }
 
         for _, pattern in ipairs(hidePatterns) do
-            if string.match(message, pattern) then
+            if message:match(pattern) then
                 return true
             end
         end
@@ -512,11 +506,11 @@ function matchMessage(isPlayer, message)
         }
 
         for _, reason in ipairs(hidePatterns) do
-            if string.find(lowerMessage, reason) then
-                if string.find(lowerMessage, lowerPlayerName) then
+            if lowerMessage:find(reason) then
+                if lowerMessage:find(lowerPlayerName) then
                     notification.allow = true
                 else
-                    if string.find(lowerMessage, "^you") or string.find(lowerMessage, "^it is currently night") then
+                    if lowerMessage:find('^you') or lowerMessage:find('^it is currently night') then
                         notification.allow = true
                     else
                         return true
@@ -542,80 +536,179 @@ function deleteOldestMessages()
     end
 end
 
-local scrollInterval
-function scrollText()
-    scrollInterval = setInterval(function()
-        local firstLetter, restString, scrolledText
+function to12hTime(timeString)
+    local hour, minute = timeString:match('^(%d+):(%d+)$')
+    hour, minute = tonumber(hour), tonumber(minute)
+    time.period = 'AM'
+    if hour >= 12 then
+        time.period = 'PM'
+        hour = hour % 12
+        if hour == 0 then hour = 12 end
+    end
 
-        if settings.scrollDirection == 0 then
-            firstLetter = utf8sub(nowPlaying.scroll, 1, 1)
-            restString = utf8sub(nowPlaying.scroll, 2)
-            scrolledText = restString .. firstLetter
-        else
-            firstLetter = utf8sub(nowPlaying.scroll, nowPlaying.length, nowPlaying.length)
-            restString = utf8sub(nowPlaying.scroll, 1, nowPlaying.length - 1)
-            scrolledText = firstLetter .. restString
-        end
-
-        nowPlaying.scroll = scrolledText
-        nowPlaying.final = scrolledText
-    end, 1 / settings.scrollSpeed, 'ST')
+    if hour < 10 then hour = '0' .. hour end
+    return string.format('%s:%02d', hour, minute)
 end
 
-local updateInterval
-function runUpdate()
-    updateInterval = setInterval(function()
-        updateTime()
-        if settings.nowPlaying then updateSong() end
-    end, 2, 'RU')
+function updateTimeDisplay()
+    local currentTime = settings.trackTime and (string.format('%02d', ac.getSim().timeHours) .. ':' .. string.format('%02d', ac.getSim().timeMinutes)) or os.date('%H:%M')
+    time.final = settings.badTime and to12hTime(currentTime) or currentTime
+end
+
+function updateTimeInterval()
+    updateTimeDisplay()
+
+    if time.interval then
+        clearInterval(time.interval)
+        time.interval = nil
+    end
+
+    if settings.trackTime then
+        time.interval = setInterval(updateTimeDisplay, 1)
+    else
+        time.interval = setInterval(updateTimeDisplay, 30)
+    end
 end
 
 function updateSpacing()
-    nowPlaying.spaces = string.rep(" ", settings.spaces)
-    nowPlaying.FUCK = true
+    nowPlaying.spaces = string.rep(' ', settings.spaces)
+    updateNowPlaying(true)
 end
 
-function updateSong()
-    if ac.currentlyPlaying().artist == nil then nowPlaying.final = nowPlaying.lstr end
-    local currentSong = ac.currentlyPlaying()
-    if currentSong.isPlaying then
-        local artistChanged = nowPlaying.artist ~= currentSong.artist
-        local titleChanged = nowPlaying.title ~= currentSong.title
+function updateLoadingAnimation()
+    nowPlaying.loadingDots = (nowPlaying.loadingDots + 1) % 4
+    nowPlaying.final = nowPlaying.lstr .. string.rep('.', nowPlaying.loadingDots)
+end
 
-        if artistChanged or titleChanged or nowPlaying.isPaused or nowPlaying.FUCK then
-            if not scrollInterval then scrollText() end
-            nowPlaying.isPaused = false
-            nowPlaying.FUCK = false
-            nowPlaying.artist = currentSong.artist
-            nowPlaying.title = currentSong.title
+function startLoadingAnimation()
+    if not nowPlaying.loadingInterval then
+        nowPlaying.isLoading = true
+        nowPlaying.loadingInterval = setInterval(updateLoadingAnimation, 0.5, 'loadingAnim')
+        updateLoadingAnimation()
+    end
+end
 
-            local isUnknownArtist = string.lower(nowPlaying.artist) == 'unknown artist'
-            nowPlaying.scroll = isUnknownArtist and (nowPlaying.title .. nowPlaying.spaces) or (nowPlaying.artist .. ' - ' .. nowPlaying.title .. nowPlaying.spaces)
+function stopLoadingAnimation()
+    if nowPlaying.loadingInterval then
+        clearInterval(nowPlaying.loadingInterval)
+        nowPlaying.loadingInterval = nil
+        nowPlaying.isLoading = false
+    end
+end
 
-            if utf8len(nowPlaying.scroll) < 20 then nowPlaying.scroll = nowPlaying.scroll .. string.rep(' ', 20 - utf8len(nowPlaying.scroll)) end
+function splitTitle(title)
+    local patterns = {
+        '^(.-)%s*%- %s*(.+)$',
+        '^(.-)%-([^%-]+)$',
+    }
 
-            nowPlaying.length = utf8len(nowPlaying.scroll)
+    for _, pattern in ipairs(patterns) do
+        local artist, track = title:match(pattern)
+        if artist and track then
+            return artist:match('^%s*(.-)%s*$'), track:match('^%s*(.-)%s*$')
         end
-    else
-        if nowPlaying.artist ~= '' then
-            if scrollInterval then
-                clearInterval(scrollInterval)
-                scrollInterval = nil
-            end
+    end
 
-            nowPlaying.length = utf8len(nowPlaying.pstr)
+    return 'Unknown Artist', title
+end
+
+function updateNowPlaying(forced)
+    local current = ac.currentlyPlaying()
+    local artist = current.artist
+    local title = current.title
+
+    if (current.artist:lower() == 'unknown artist' or current.artist == '') and current.title ~= '' then
+        artist, title = splitTitle(current.title)
+    end
+
+    if artist == '' and title == '' and not current.isPlaying then
+        if nowPlaying.artist == '' or nowPlaying.title == '' then
+            startLoadingAnimation()
+        else
+            stopLoadingAnimation()
             nowPlaying.final = nowPlaying.pstr
             nowPlaying.isPaused = true
+        end
+    else
+        stopLoadingAnimation()
+        nowPlaying.isPaused = false
+        if artist ~= nowPlaying.artist or title ~= nowPlaying.title or forced then
+            nowPlaying.artist = artist
+            nowPlaying.title = title
+            nowPlaying.scroll = (nowPlaying.artist ~= '' and nowPlaying.artist:lower() ~= 'unknown artist') and (nowPlaying.artist .. ' - ' .. nowPlaying.title .. nowPlaying.spaces) or (nowPlaying.title .. nowPlaying.spaces)
+            if utf8len(nowPlaying.scroll) < 18 then nowPlaying.scroll = nowPlaying.scroll .. string.rep(' ', 18 - utf8len(nowPlaying.scroll)) end
+            nowPlaying.length = utf8len(nowPlaying.scroll)
+            nowPlaying.final = nowPlaying.scroll
         end
     end
 end
 
-function updateTime()
-    local currentTime = settings.trackTime and (string.format('%02d', ac.getSim().timeHours) .. ':' .. string.format('%02d', ac.getSim().timeMinutes)) or os.date("%H:%M")
-    time.final = settings.badTime and to12hTime(currentTime) or currentTime
+function scrollText()
+    if nowPlaying.isPaused or nowPlaying.isLoading then return end
+
+    local firstLetter, restString
+
+    if settings.scrollDirection == 0 then
+        firstLetter = utf8sub(nowPlaying.scroll, 1, 1)
+        restString = utf8sub(nowPlaying.scroll, 2)
+        nowPlaying.scroll = restString .. firstLetter
+    else
+        firstLetter = utf8sub(nowPlaying.scroll, nowPlaying.length, nowPlaying.length)
+        restString = utf8sub(nowPlaying.scroll, 1, nowPlaying.length - 1)
+        nowPlaying.scroll = firstLetter .. restString
+    end
+
+    nowPlaying.final = nowPlaying.scroll
 end
 
-local appWindow = ac.accessAppWindow("IMGUI_LUA_Mobilephone_main")
+function startNowPlaying()
+    updateSpacing()
+    updateNowPlaying()
+
+    if nowPlaying.updateInterval then
+        clearInterval(nowPlaying.updateInterval)
+        nowPlaying.updateInterval = nil
+    end
+
+    if nowPlaying.scrollInterval then
+        clearInterval(nowPlaying.scrollInterval)
+        nowPlaying.scrollInterval = nil
+    end
+
+    nowPlaying.updateInterval = setInterval(updateNowPlaying, 2, 'updateNP')
+    nowPlaying.scrollInterval = setInterval(scrollText, 1 / settings.scrollSpeed, 'scrollText')
+end
+
+function stopNowPlaying()
+    stopLoadingAnimation()
+
+    if nowPlaying.updateInterval then
+        clearInterval(nowPlaying.updateInterval)
+        nowPlaying.updateInterval = nil
+    end
+
+    if nowPlaying.scrollInterval then
+        clearInterval(nowPlaying.scrollInterval)
+        nowPlaying.scrollInterval = nil
+    end
+
+    nowPlaying.final = ''
+    nowPlaying.artist = ''
+    nowPlaying.title = ''
+    nowPlaying.isPaused = false
+    nowPlaying.isLoading = false
+end
+
+function updateScrollInterval()
+    if nowPlaying.scrollInterval then
+        clearInterval(nowPlaying.scrollInterval)
+        nowPlaying.scrollInterval = nil
+    end
+
+    nowPlaying.scrollInterval = setInterval(scrollText, 1 / settings.scrollSpeed, 'scrollText')
+end
+
+local appWindow = ac.accessAppWindow('IMGUI_LUA_Mobilephone_main')
 local windowHeight, appBottom
 function forceAppToBottom()
     if not appWindow:valid() then return end
@@ -633,23 +726,16 @@ end
 --#region APP EVENTS
 
 function onShowWindow()
-    if settings.nowPlaying then
-        nowPlaying.final = nowPlaying.lstr
-        nowPlaying.FUCK = true
-        nowPlaying.isPaused = false
-        updateSong()
-    end
-
-    updateTime()
-    runUpdate()
+    updateTimeInterval()
+    if settings.nowPlaying then startNowPlaying() end
     if (settings.autoUpdate and doUpdate) or settings.updateAvailable then updateCheckVersion() end
 end
 
 ac.onChatMessage(function(message, senderCarIndex)
-    local escapedMessage = string.gsub(message, '([%(%)%.%%%+%-%*%?%[%]%^%$])', '%%%1')
+    local escapedMessage = message:gsub('([%(%)%.%%%+%-%*%?%[%]%^%$])', '%%%1')
     local isPlayer = senderCarIndex > -1
     local isFriend = isPlayer and checkIfFriend(senderCarIndex)
-    local isMentioned = settings.notifSound and string.find(string.lower(escapedMessage), '%f[%a_]' .. string.lower(car.playerName) .. '%f[%A_]')
+    local isMentioned = settings.notifSound and escapedMessage:lower():find('%f[%a_]' .. car.playerName:lower() .. '%f[%A_]')
     local hideMessage = false
 
     if isPlayer then
@@ -794,50 +880,38 @@ function script.windowMainSettings(dt)
 
             if ui.checkbox('Use 12h Clock', settings.badTime) then
                 settings.badTime = not settings.badTime
-                updateTime()
+                updateTimeInterval()
             end
 
             if ui.checkbox('Use Track Time', settings.trackTime) then
                 settings.trackTime = not settings.trackTime
-                updateTime()
+                updateTimeInterval()
             end
 
             if ui.checkbox('Show Current Song', settings.nowPlaying) then
                 settings.nowPlaying = not settings.nowPlaying
                 if settings.nowPlaying then
-                    nowPlaying.FUCK = true
-                    updateSong()
+                    startNowPlaying()
                 else
-                    if updateInterval then
-                        clearInterval(updateInterval)
-                        updateInterval = nil
-                    end
-
-                    if scrollInterval then
-                        clearInterval(scrollInterval)
-                        scrollInterval = nil
-                    end
-
-                    runUpdate()
+                    stopNowPlaying()
                 end
             end
 
             if settings.nowPlaying then
                 ui.text('\t')
                 ui.sameLine()
-                settings.spaces = ui.slider('##Spaces', settings.spaces, 1, 25, 'Spaces: ' .. '%.0f')
-                if nowPlaying.spaces ~= string.rep(" ", settings.spaces) then updateSpacing() end
+                local spacesChanged
+                settings.spaces, spacesChanged = ui.slider('##Spaces', settings.spaces, 0, 25, 'Spaces: %.0f', true)
+                if spacesChanged then
+                    updateSpacing()
+                end
 
                 ui.text('\t')
                 ui.sameLine()
-                settings.scrollSpeed, speedChange = ui.slider('##ScrollSpeed', settings.scrollSpeed, 0, 15, 'Scroll Speed: ' .. '%.1f')
-                if speedChange and not nowPlaying.isPaused then
-                    if scrollInterval then
-                        clearInterval(scrollInterval)
-                        scrollInterval = nil
-                    end
-
-                    scrollText()
+                local speedChanged
+                settings.scrollSpeed, speedChanged = ui.slider('##ScrollSpeed', settings.scrollSpeed, 0.1, 15, 'Scroll Speed: %.1f')
+                if speedChanged then
+                    updateScrollInterval()
                 end
 
                 ui.text('\t')
@@ -990,7 +1064,7 @@ function script.windowMain(dt)
     ui.childWindow('Chatbox', chat.size, flags.window, function()
         if #chat.messages > 0 then
             for i = 1, #chat.messages do
-                if (i == #chat.messages and settings.chatBold) or string.find(string.lower(chat.messages[i][1]), '%f[%a_]' .. string.lower(car.playerName) .. '%f[%A_]') then
+                if (i == #chat.messages and settings.chatBold) or chat.messages[i][1]:lower():find('%f[%a_]' .. car.playerName:lower() .. '%f[%A_]') then
                     ui.pushDWriteFont(phone.src.fontBold)
                 else
                     ui.pushDWriteFont(phone.src.font)
@@ -1003,10 +1077,10 @@ function script.windowMain(dt)
                 local cursorPos = vec2(ui.getCursorX(), ui.getCursorY() - dwriteSize.y) - vec2(1, 3)
                 local senderUserName = chat.messages[i][2]
 
-                if string.endsWith(senderUserName, ': ') then
-                    senderUserName = string.sub(senderUserName, 1, #senderUserName - 2)
-                elseif string.endsWith(senderUserName, ' ') then
-                    senderUserName = string.sub(senderUserName, 1, #senderUserName - 1)
+                if senderUserName:endsWith(': ') then
+                    senderUserName = senderUserName:sub(1, #senderUserName - 2)
+                elseif senderUserName:endsWith(' ') then
+                    senderUserName = senderUserName:sub(1, #senderUserName - 1)
                 end
 
                 if phoneHovered and senderUserName ~= '' and senderUserName ~= car.playerName then
@@ -1098,12 +1172,6 @@ function script.windowMain(dt)
                         setTimeout(function() chat.sendCd = false end, 1)
                     elseif ui.mouseClicked(ui.MouseButton.left) and not nowPlaying.isPaused then
                         settings.scrollDirection = 1 - settings.scrollDirection
-                        if scrollInterval then
-                            clearInterval(scrollInterval)
-                            scrollInterval = nil
-                        end
-
-                        scrollText()
                     end
                 end
             end
@@ -1111,12 +1179,14 @@ function script.windowMain(dt)
             local timeHovered = ui.rectHovered(ui.getCursor() + vec2(6, 44), ui.getCursor() + vec2(64, 64))
             if timeHovered then
                 if ui.mouseClicked(ui.MouseButton.Right) and car.online then
-                    ac.sendChatMessage(settings.trackTime and 'Current track time: ' .. time.track or 'Current local time: ' .. time.player)
+                    local timeString = settings.trackTime and 'Current track time: ' or 'Current local time: '
+                    local timeValue = settings.badTime and (time.final .. ' ' .. time.period) or time.final
+                    ac.sendChatMessage(timeString .. timeValue)
                     chat.sendCd = true
                     setTimeout(function() chat.sendCd = false end, 1)
                 elseif ui.mouseClicked(ui.MouseButton.Left) then
                     settings.trackTime = not settings.trackTime
-                    updateTime()
+                    updateTimeInterval()
                 end
             end
         end
