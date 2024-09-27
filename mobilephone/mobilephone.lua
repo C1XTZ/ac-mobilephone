@@ -4,6 +4,8 @@
 --che: you dont really need this since you're loading only a few images at the start
 ui.setAsynchronousImagesLoading(true)
 
+local SnakeGame = require('./src/snake_game')
+
 --#region UTF8 HANDLING
 
 --xtz: adding these so unicode characters like kanji dont break while scrolling
@@ -105,6 +107,7 @@ local settings = ac.storage {
     chatOlderThan = 15,
     chatScrollSpeed = 2,
     forceBottom = true,
+    snakeHighscore = 0,
 }
 
 local app = {
@@ -1037,7 +1040,7 @@ function script.windowMain(dt)
     updateChatMovement(dt)
 
     local phoneHovered = ui.windowHovered(ui.HoveredFlags.ChildWindows)
-    if (phoneHovered or chat.activeInput) then moveChatUp() end
+    if (phoneHovered or chat.activeInput or SnakeGame.state ~= 'waiting') then moveChatUp() end
 
     if settings.notifSound or settings.joinNotifSound then
         if notification.sound:playing() and notification.sound:ended() then notification.sound:pause() end
@@ -1047,117 +1050,156 @@ function script.windowMain(dt)
     ui.setCursor(vec2(0, 0 + movement.smooth))
     ui.childWindow('Display', app.size, flags.window, function()
         ui.drawImage(phone.src.display, VecTR, VecBL, phone.displayColor)
-        ui.pushDWriteFont(phone.src.fontNoEm)
-        ui.setCursor(vec2(31, 52))
-        ui.dwriteTextAligned(time.final, 16, -1, 0, ui.measureDWriteText(time.final, 16), false, phone.txtColor)
-        ui.popDWriteFont()
 
-        if settings.nowPlaying then
-            ui.setCursor(vec2(91, 54))
+        if SnakeGame.state == 'waiting' then
             ui.pushDWriteFont(phone.src.fontNoEm)
-            ui.dwriteTextAligned(nowPlaying.final, 16, -1, 0, vec2(146, 18), false, phone.txtColor)
+            ui.setCursor(vec2(31, 52))
+            ui.dwriteTextAligned(time.final, 16, -1, 0, ui.measureDWriteText(time.final, 16), false, phone.txtColor)
             ui.popDWriteFont()
+
+            if settings.nowPlaying then
+                ui.setCursor(vec2(91, 54))
+                ui.pushDWriteFont(phone.src.fontNoEm)
+                ui.dwriteTextAligned(nowPlaying.final, 16, -1, 0, vec2(146, 18), false, phone.txtColor)
+                ui.popDWriteFont()
+            end
         end
     end)
 
-    ui.setCursor(vec2(11, 73 + movement.smooth))
-    ui.childWindow('Chatbox', chat.size, flags.window, function()
-        if #chat.messages > 0 then
-            for i = 1, #chat.messages do
-                if (i == #chat.messages and settings.chatBold) or chat.messages[i][1]:lower():find('%f[%a_]' .. car.playerName:lower() .. '%f[%A_]') then
-                    ui.pushDWriteFont(phone.src.fontBold)
-                else
-                    ui.pushDWriteFont(phone.src.font)
+    if SnakeGame.state == 'waiting' then
+        ui.setCursor(vec2(11, 73 + movement.smooth))
+        ui.childWindow('Chatbox', chat.size, flags.window, function()
+            if #chat.messages > 0 then
+                for i = 1, #chat.messages do
+                    if (i == #chat.messages and settings.chatBold) or chat.messages[i][1]:lower():find('%f[%a_]' .. car.playerName:lower() .. '%f[%A_]') then
+                        ui.pushDWriteFont(phone.src.fontBold)
+                    else
+                        ui.pushDWriteFont(phone.src.font)
+                    end
+
+                    ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
+                    local dwriteSize = ui.measureDWriteText(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, 200)
+                    ui.popDWriteFont()
+
+                    local cursorPos = vec2(ui.getCursorX(), ui.getCursorY() - dwriteSize.y) - vec2(1, 3)
+                    local senderUserName = chat.messages[i][2]
+
+                    if senderUserName:endsWith(': ') then
+                        senderUserName = senderUserName:sub(1, #senderUserName - 2)
+                    elseif senderUserName:endsWith(' ') then
+                        senderUserName = senderUserName:sub(1, #senderUserName - 1)
+                    end
+
+                    if phoneHovered and senderUserName ~= '' and senderUserName ~= car.playerName then
+                        local messageHovered = {}
+                        messageHovered[i] = ui.rectHovered(cursorPos, cursorPos + dwriteSize, true)
+                        if messageHovered[i] and ui.mouseClicked(ui.MouseButton.Right) then
+                            chat.mentioned = '@' .. senderUserName .. ' '
+                        end
+                    end
+
+                    if not phoneHovered or chat.scrollBool then ui.setScrollHereY(1) end
+                end
+            end
+
+            if phoneHovered and ui.mouseWheel() ~= 0 then
+                local mouseWheel = (ui.mouseWheel() * -1) * (settings.chatScrollSpeed * 10)
+                ui.setScrollY(mouseWheel, true, true)
+            end
+        end)
+
+        if settings.damage then
+            if car.player.collidedWith > -1 then
+                if car.damage.state < 2 then
+                    car.forces.total = {}
                 end
 
-                ui.dwriteTextWrapped(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, phone.txtColor)
-                local dwriteSize = ui.measureDWriteText(chat.messages[i][3] .. chat.messages[i][2] .. chat.messages[i][1], settings.chatFontSize, 200)
-                ui.popDWriteFont()
+                --xtz: split x and z axis into 4 directions
+                car.forces.left = math.max(-car.player.acceleration.x, 0)
+                car.forces.right = math.max(car.player.acceleration.x, 0)
+                car.forces.front = math.max(-car.player.acceleration.z, 0)
+                car.forces.back = math.max(car.player.acceleration.z, 0)
 
-                local cursorPos = vec2(ui.getCursorX(), ui.getCursorY() - dwriteSize.y) - vec2(1, 3)
-                local senderUserName = chat.messages[i][2]
+                --xtz: add all the forces together and calculate the mean value then insert them into a table
+                local totalForce = (car.forces.front + car.forces.back + car.forces.left + car.forces.right) / 2
+                table.insert(car.forces.total, totalForce)
+                local maxForce = math.max(unpack(car.forces.total))
 
-                if senderUserName:endsWith(': ') then
-                    senderUserName = senderUserName:sub(1, #senderUserName - 2)
-                elseif senderUserName:endsWith(' ') then
-                    senderUserName = senderUserName:sub(1, #senderUserName - 1)
-                end
-
-                if phoneHovered and senderUserName ~= '' and senderUserName ~= car.playerName then
-                    local messageHovered = {}
-                    messageHovered[i] = ui.rectHovered(cursorPos, cursorPos + dwriteSize, true)
-                    if messageHovered[i] and ui.mouseClicked(ui.MouseButton.Right) then
-                        chat.mentioned = '@' .. senderUserName .. ' '
+                --xtz: set damage state if forces exceed the force values and reset damage duration if not already fading
+                if maxForce > settings.breakForce or maxForce > settings.crackForce then
+                    car.damage.state = maxForce > settings.breakForce and 2 or 1
+                    if car.damage.duration > 0 and car.damage.fadeTimer == settings.fadeDuration then
+                        car.damage.duration = settings.damageDuration
                     end
                 end
+            end
 
-                if not phoneHovered or chat.scrollBool then ui.setScrollHereY(1) end
+            if car.damage.state > 0 then
+                if car.damage.duration <= 0 and car.damage.fadeTimer == settings.fadeDuration then
+                    car.damage.duration = settings.damageDuration
+                elseif car.damage.duration > 0 then
+                    car.damage.duration = car.damage.duration - dt
+                end
+
+                if car.damage.duration <= 0 then
+                    car.damage.fadeTimer = car.damage.fadeTimer - dt
+                end
+
+                if car.damage.fadeTimer <= 0 then
+                    car.damage.state = 0
+                    car.damage.fadeTimer = settings.fadeDuration
+                end
+            end
+
+            if car.damage.state > 0 and car.damage.fadeTimer > 0 then
+                ui.setCursor(vec2(0, 0 + movement.smooth))
+                ui.childWindow('DisplayDamage', app.size, flags.window, function()
+                    local damageAlpha = ((100 / settings.fadeDuration) / 100) * car.damage.fadeTimer
+
+                    if car.damage.state > 1 then
+                        ui.drawImage(phone.src.destroyed, VecTR, VecBL, rgbm(1, 1, 1, damageAlpha))
+                    end
+
+                    if car.damage.state > 0 then
+                        ui.drawImage(phone.src.cracked, VecTR, VecBL, rgbm(1, 1, 1, damageAlpha))
+                    end
+                end)
             end
         end
+    end
 
-        if phoneHovered and ui.mouseWheel() ~= 0 then
-            local mouseWheel = (ui.mouseWheel() * -1) * (settings.chatScrollSpeed * 10)
-            ui.setScrollY(mouseWheel, true, true)
-        end
+    ui.setCursor(vec2(16, 75 + movement.smooth))
+    ui.childWindow('Easteregg', vec2(233, 310), function()
+        SnakeGame.update(dt, settings.snakeHighscore, phone.txtColor)
+        if SnakeGame.highScore > settings.snakeHighscore then settings.snakeHighscore = SnakeGame.highScore end
     end)
 
-    if settings.damage then
-        if car.player.collidedWith > -1 then
-            if car.damage.state < 2 then
-                car.forces.total = {}
+    if SnakeGame.state ~= 'waiting' then
+        ui.setCursor(vec2(0, 0 + movement.smooth))
+        ui.childWindow('EastereggScore', app.size, flags.window, function()
+            if SnakeGame.state == 'gameover' then
+                local goTxt = 'Game Over!\n' .. (SnakeGame.newHs and 'New Highscore: ' or 'Score: ') .. (SnakeGame.newHs and SnakeGame.snakeHighscore or SnakeGame.score)
+                ui.pushDWriteFont(phone.src.fontNoEm)
+                local goTxtSize = ui.measureDWriteText(goTxt, 17)
+                ui.setCursor(vec2((ui.windowWidth() / 2) - (goTxtSize.x / 2), (ui.windowHeight() / 2) - (goTxtSize.y / 2)))
+                ui.beginOutline()
+                ui.dwriteTextAligned(goTxt, 17, 0, 0, goTxtSize, false, phone.txtColor)
+                ui.endOutline(phone.displayColor, 1)
+                ui.popDWriteFont()
             end
 
-            --split x and z axis into 4 directions
-            car.forces.left = math.max(-car.player.acceleration.x, 0)
-            car.forces.right = math.max(car.player.acceleration.x, 0)
-            car.forces.front = math.max(-car.player.acceleration.z, 0)
-            car.forces.back = math.max(car.player.acceleration.z, 0)
+            local scoreTxt = string.format("%04d", SnakeGame.score)
+            ui.pushDWriteFont(phone.src.fontNoEm)
+            ui.setCursor(vec2(31, 53))
+            ui.dwriteTextAligned(scoreTxt, 16, -1, 0, ui.measureDWriteText(scoreTxt, 16), false, phone.txtColor)
+            ui.popDWriteFont()
 
-            --add all the forces together and calculate the mean value then insert them into a table
-            local totalForce = (car.forces.front + car.forces.back + car.forces.left + car.forces.right) / 2
-            table.insert(car.forces.total, totalForce)
-            local maxForce = math.max(unpack(car.forces.total))
-
-            --set damage state if forces exceed the force values and reset damage duration if not already fading
-            if maxForce > settings.breakForce or maxForce > settings.crackForce then
-                car.damage.state = maxForce > settings.breakForce and 2 or 1
-                if car.damage.duration > 0 and car.damage.fadeTimer == settings.fadeDuration then
-                    car.damage.duration = settings.damageDuration
-                end
-            end
-        end
-
-        if car.damage.state > 0 then
-            if car.damage.duration <= 0 and car.damage.fadeTimer == settings.fadeDuration then
-                car.damage.duration = settings.damageDuration
-            elseif car.damage.duration > 0 then
-                car.damage.duration = car.damage.duration - dt
-            end
-
-            if car.damage.duration <= 0 then
-                car.damage.fadeTimer = car.damage.fadeTimer - dt
-            end
-
-            if car.damage.fadeTimer <= 0 then
-                car.damage.state = 0
-                car.damage.fadeTimer = settings.fadeDuration
-            end
-        end
-
-        if car.damage.state > 0 and car.damage.fadeTimer > 0 then
-            ui.setCursor(vec2(0, 0 + movement.smooth))
-            ui.childWindow('DisplayDamage', app.size, flags.window, function()
-                local damageAlpha = ((100 / settings.fadeDuration) / 100) * car.damage.fadeTimer
-
-                if car.damage.state > 1 then
-                    ui.drawImage(phone.src.destroyed, VecTR, VecBL, rgbm(1, 1, 1, damageAlpha))
-                end
-
-                if car.damage.state > 0 then
-                    ui.drawImage(phone.src.cracked, VecTR, VecBL, rgbm(1, 1, 1, damageAlpha))
-                end
-            end)
-        end
+            local hsTxt = string.format("%04d", SnakeGame.highScore)
+            ui.pushDWriteFont(phone.src.fontNoEm)
+            ui.setCursor(vec2(170, 53))
+            ui.dwriteTextAligned('* ' .. hsTxt, 16, 1, 0, ui.measureDWriteText('* ' .. hsTxt, 16), false, phone.txtColor)
+            ui.popDWriteFont()
+        end)
     end
 
     ui.setCursor(vec2(0, 0 + movement.smooth))
@@ -1207,33 +1249,35 @@ function script.windowMain(dt)
     end)
 
     --xtz: not affected by glare/glow because childwindows dont have clickthrough so it cant be moved 'below', not important just a ocd thing
-    ui.setCursor(vec2(8, 347 + movement.smooth))
-    ui.childWindow('Chatinput', vec2(323, 38), flags.window, function()
-        local chatLabelString, chatInputString, chatInputChange, chatInputEnter = 'Type new message...', chat.mentioned .. '', _, _
-        if not car.online then
-            chatLabelString = 'Must be online to send message'
-            chat.inputFlags = bit.bor(chat.inputFlags, ui.InputTextFlags.ReadOnly)
-        end
+    if SnakeGame.state == 'waiting' then
+        ui.setCursor(vec2(8, 347 + movement.smooth))
+        ui.childWindow('Chatinput', vec2(323, 38), flags.window, function()
+            local chatLabelString, chatInputString, chatInputChange, chatInputEnter = 'Type new message...', chat.mentioned .. '', _, _
+            if not car.online then
+                chatLabelString = 'Must be online to send message'
+                chat.inputFlags = bit.bor(chat.inputFlags, ui.InputTextFlags.ReadOnly)
+            end
 
-        chatInputString, chatInputChange, chatInputEnter = ui.inputText(chatLabelString, chatInputString, chat.inputFlags)
-        chat.activeInput = ui.itemActive()
-        if chat.mentioned ~= '' and chatInputString ~= chat.mentioned then chat.mentioned = '' end
-        --there is a cooldown on sending chat messages online
-        if car.online and chatInputEnter and chatInputString and not chat.sendCd then
-            ac.sendChatMessage(chatInputString)
-            ui.setKeyboardFocusHere(-1)
-            ui.clearInputCharacters()
-            chat.mentioned = ''
-            chat.sendCd = true
-            --need to add this flag because otherwise the inputbox is emptied even tho clearInputCharacters is not called after pressing enter
-            chat.inputFlags = bit.bor(chat.inputFlags, ui.InputTextFlags.RetainSelection)
+            chatInputString, chatInputChange, chatInputEnter = ui.inputText(chatLabelString, chatInputString, chat.inputFlags)
+            chat.activeInput = ui.itemActive()
+            if chat.mentioned ~= '' and chatInputString ~= chat.mentioned then chat.mentioned = '' end
+            --xtz: there is a cooldown on sending chat messages online
+            if car.online and chatInputEnter and chatInputString and not chat.sendCd then
+                ac.sendChatMessage(chatInputString)
+                ui.setKeyboardFocusHere(-1)
+                ui.clearInputCharacters()
+                chat.mentioned = ''
+                chat.sendCd = true
+                --xtz: need to add this flag because otherwise the inputbox is emptied even tho clearInputCharacters is not called after pressing enter
+                chat.inputFlags = bit.bor(chat.inputFlags, ui.InputTextFlags.RetainSelection)
 
-            setTimeout(function()
-                chat.sendCd = false
-                chat.inputFlags = bit.band(chat.inputFlags, bit.bnot(ui.InputTextFlags.RetainSelection))
-            end, 1)
-        end
-    end)
+                setTimeout(function()
+                    chat.sendCd = false
+                    chat.inputFlags = bit.band(chat.inputFlags, bit.bnot(ui.InputTextFlags.RetainSelection))
+                end, 1)
+            end
+        end)
+    end
 end
 
 --#endregion
