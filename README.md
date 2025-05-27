@@ -1,5 +1,7 @@
 # Mobilephone App for AC
-A Mobilephone that displays the ingame chat, time and the current song.
+Chat replacement app in the style of an old phone.
+
+If you're looking for a more "modern" feel, try my [Smartphone](https://github.com/C1XTZ/ac-smartphone/) app.
 
 ### Current Features:
 
