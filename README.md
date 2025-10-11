@@ -1,19 +1,22 @@
 # Mobilephone App for AC
-Chat replacement app in the style of an old phone.
+
+[![](https://img.shields.io/github/v/release/c1xtz/ac-mobilephone?sort=date&display_name=tag&style=for-the-badge&logo=github&label=Download%20Latest&color=black)](https://github.com/C1XTZ/ac-mobilephone/releases/latest)
+
+Chat replacement app in the style of an ~mid 2000's phone.
 
 If you're looking for a more "modern" feel, try my [Smartphone](https://github.com/C1XTZ/ac-smartphone/) app.
 
 ### Current Features:
 
-- **Ingame App Updater**
-- **Current IRL or Track time - Left click to switch between IRL and track, right click to send to chat**
-- **Currently playing song - Left click to switch scroll direction, right click to send to chat**
-- **Ingame chat - Right click a message to @mention the sender**
-- **Sound notifications - Join/Leave events, @mentions, or simply every message**
-- **Broken screen on impacts - Shattered glass on light, completely destroyed screen on heavy impacts**
-- **Hides annoying messages from other apps**
+- **In-Game Updater** – Update directly from within the app
+- **Time Display** – Shows current IRL or track time (left-click to switch, right-click to send to chat)
+- **Now Playing** – Displays currently playing song (left-click to change scroll direction, right-click to send to chat)
+- **In-Game Chat** – Right-click any message to @mention the sender
+- **Sound Notifications** – Alerts for join/leave events, @mentions, or all messages
+- **Impact Effects** – Shattered glass on light impacts, destroyed screen on heavy impacts
+- **Message Filtering** – Hides spam from other apps
     - Example: `PLP: running version 1.21, 2-60-3-True-3.3-0.9-3-2-8-5-0|C1XTZ`
-- **Many adjustable settings to suit your preferences as seen below - images might be outdated, always check ingame**
+- **Customizable Settings – Extensive options to personalize your experience by opening the settings via the cogwheel**
 
 <p align="center">
 <img width="150" src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/updater.png"> <img width="150" src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/displaysettings.png"> <img width="150" src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/preview.gif"> <img width="150" src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/chatsettings.png"> <img width="150" src="https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/soundsettings.png">
