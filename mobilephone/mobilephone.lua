@@ -353,7 +353,9 @@ function updateApplyUpdate(downloadUrl)
                 if filePath then
                     filePath = filePath:gsub(appName .. '/', '')
                     if filePath ~= mainFile then
-                        if io.save(appFolder .. '/' .. filePath, content) then
+                        local fullPath = appFolder .. '/' .. filePath
+                        io.createFileDir(fullPath)
+                        if io.save(fullPath, content) then
                             print('Updating: ' .. filePath)
                             updatedFiles[filePath] = true
                         else
@@ -383,7 +385,7 @@ function updateApplyUpdate(downloadUrl)
 
         for _, file in ipairs(currentFiles) do
             local relativePath = file:sub(#appFolder + 2)
-            if not updatedFiles[relativePath] then
+            if not updatedFiles[relativePath] and relativePath ~= mainFile then
                 if io.deleteFile(file) then
                     print('Removing: ' .. relativePath)
                 else
