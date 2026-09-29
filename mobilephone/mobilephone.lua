@@ -96,12 +96,6 @@ local settings = ac.storage {
     txtColor = rgb(0),
     alwaysNotif = false,
     enableSound = true,
-    lastCheck = 0,
-    autoUpdate = false,
-    updateInterval = 7,
-    updateStatus = 0,
-    updateAvailable = false,
-    updateURL = '',
     chatPurge = false,
     chatKeepSize = 50,
     chatOlderThan = 15,
@@ -205,23 +199,6 @@ local flags = {
     color = bit.bor(ui.ColorPickerFlags.NoAlpha, ui.ColorPickerFlags.NoSidePreview, ui.ColorPickerFlags.NoDragDrop, ui.ColorPickerFlags.NoLabel, ui.ColorPickerFlags.DisplayRGB, ui.ColorPickerFlags.NoSmallPreview)
 }
 
-local updateStatusTable = {
-    [0] = 'C1XTZ: You shouldnt be reading this',
-    [1] = 'Updated: App successfully updated',
-    [2] = 'No Change: Latest version was already installed',
-    [3] = 'No Change: A newer version was already installed',
-    [4] = 'Error: Something went wrong, aborted update',
-    [5] = 'Update Available to Download and Install'
-}
-local updateStatusColor = {
-    [0] = rgbm.colors.white,
-    [1] = rgbm.colors.lime,
-    [2] = rgbm.colors.white,
-    [3] = rgbm.colors.white,
-    [4] = rgbm.colors.red,
-    [5] = rgbm.colors.lime
-}
-
 function setNotifiVolume()
     notification.sound:setVolume(0.01 * settings.notifVolume)
 end
@@ -237,179 +214,11 @@ end
 
 --#region APP UPDATER
 
-local appName = 'mobilephone'
-local appFolder = ac.getFolder(ac.FolderID.ACApps) .. '/lua/' .. appName .. '/'
-local manifest = ac.INIConfig.load(appFolder .. '/manifest.ini', ac.INIFormat.Extended)
-local appVersion = manifest:get('ABOUT', 'VERSION', 0.01)
-local releaseURL = 'https://api.github.com/repos/C1XTZ/ac-mobilephone/releases/latest'
-local doUpdate = (os.time() - settings.lastCheck) / 86400 > settings.updateInterval
-local mainFile, assetFile = appName .. '.lua', appName .. '.zip'
---xtz: The ingame updater idea was taken from tuttertep's comfy map app and rewritten to work with my github releases instead of pulling from the entire repository
---xtz: JSON.parse returns a different json on 0.2.0 for some reason, ill do this for now, might bump recommended version to 0.2.1
-function handle2651(latestRelease)
-    local tagName, releaseAssets, getDownloadUrl
-    if ac.getPatchVersionCode() <= 2651 then
-        tagName = latestRelease.author.tag_name
-        releaseAssets = latestRelease.author.assets
-        getDownloadUrl = function(asset) return asset.uploader.browser_download_url end
-    else
-        tagName = latestRelease.tag_name
-        releaseAssets = latestRelease.assets
-        getDownloadUrl = function(asset) return asset.browser_download_url end
-    end
-    return tagName, releaseAssets, getDownloadUrl
-end
+local Updater = require('updater/universal')
 
-function updateCheckVersion(manual)
-    settings.lastCheck = os.time()
-
-    web.get(releaseURL, function(err, response)
-        if err then
-            settings.updateStatus = 4
-            error(err)
-            return
-        end
-
-        local latestRelease = JSON.parse(response.body)
-        local tagName, releaseAssets, getDownloadUrl = handle2651(latestRelease)
-
-        if not (tagName and tagName:match('^v%d%d?%.%d%d?$')) then
-            settings.updateStatus = 4
-            error('URL unavailable or no Version recognized, aborted update')
-            return
-        end
-        local version = tonumber(tagName:sub(2))
-
-        if appVersion > version then
-            settings.updateStatus = 3
-            settings.updateAvailable = false
-            return
-        elseif appVersion == version then
-            settings.updateStatus = 2
-            settings.updateAvailable = false
-            return
-        else
-            local downloadUrl
-            for _, asset in ipairs(releaseAssets) do
-                if asset.name == assetFile then
-                    downloadUrl = getDownloadUrl(asset)
-                    break
-                end
-            end
-
-            if not downloadUrl then
-                settings.updateStatus = 4
-                error('No matching asset found, aborted update')
-                return
-            end
-
-            if manual then
-                updateApplyUpdate(downloadUrl)
-            else
-                sendAppMessage('UPDATE AVAILABLE IN THE SETTINGS!')
-                settings.updateAvailable = true
-                settings.updateURL = downloadUrl
-                settings.updateStatus = 5
-            end
-        end
-    end)
-end
-
-local function scanDirRecursive(directory)
-    local function scan(dir, fileList)
-        local files = io.scanDir(dir)
-        for _, file in ipairs(files) do
-            if file ~= '.' and file ~= '..' then
-                local fullPath = dir .. '/' .. file
-                local attributes = io.getAttributes(fullPath)
-                if attributes.isDirectory then
-                    scan(fullPath, fileList)
-                else
-                    table.insert(fileList, fullPath)
-                end
-            end
-        end
-    end
-
-    local fileList = {}
-    scan(directory, fileList)
-    return fileList
-end
-
-function updateApplyUpdate(downloadUrl)
-    web.get(downloadUrl, function(downloadErr, downloadResponse)
-        if downloadErr then
-            settings.updateStatus = 4
-            error('Error downloading update: ' .. downloadErr)
-            return
-        end
-
-        local updatedFiles = {}
-
-        for _, file in ipairs(io.scanZip(downloadResponse.body)) do
-            local content = io.loadFromZip(downloadResponse.body, file)
-            if content then
-                local filePath = file:match('(.*)')
-                if filePath then
-                    filePath = filePath:gsub(appName .. '/', '')
-                    if filePath ~= mainFile then
-                        local fullPath = appFolder .. '/' .. filePath
-                        io.createFileDir(fullPath)
-                        if io.save(fullPath, content) then
-                            print('Updating: ' .. filePath)
-                            updatedFiles[filePath] = true
-                        else
-                            print('Failed to update: ' .. filePath)
-                        end
-                    end
-                end
-            end
-        end
-
-        local mainFileContent
-        for _, file in ipairs(io.scanZip(downloadResponse.body)) do
-            local content = io.loadFromZip(downloadResponse.body, file)
-            if content then
-                local filePath = file:match('(.*)')
-                if filePath then
-                    filePath = filePath:gsub(appName .. '/', '')
-                    if filePath == mainFile then
-                        mainFileContent = content
-                        break
-                    end
-                end
-            end
-        end
-
-        local currentFiles = scanDirRecursive(appFolder)
-
-        for _, file in ipairs(currentFiles) do
-            local relativePath = file:sub(#appFolder + 2)
-            if not updatedFiles[relativePath] and relativePath ~= mainFile then
-                if io.deleteFile(file) then
-                    print('Removing: ' .. relativePath)
-                else
-                    settings.updateStatus = 4
-                    error('Failed to remove: ' .. file)
-                end
-            end
-        end
-
-        if mainFileContent then
-            if io.save(appFolder .. '/' .. mainFile, mainFileContent) then
-                print('Updating: ' .. mainFile)
-                updatedFiles[mainFile] = true
-            else
-                settings.updateStatus = 4
-                error('Failed to update: ' .. mainFile)
-            end
-        end
-
-        settings.updateStatus = 1
-        settings.updateAvailable = false
-        settings.updateURL = ''
-    end)
-end
+Updater.init({
+  onUpdateAvailable = function() sendAppMessage('UPDATE AVAILABLE IN THE SETTINGS!') end,
+})
 
 --#endregion
 
@@ -733,7 +542,7 @@ end
 function onShowWindow()
     updateTimeInterval()
     if settings.nowPlaying then startNowPlaying() end
-    if (settings.autoUpdate and doUpdate) or settings.updateAvailable then updateCheckVersion() end
+    Updater.checkVersion()
 end
 
 ac.onChatMessage(function(message, senderCarIndex)
@@ -797,41 +606,9 @@ function script.windowMainSettings(dt)
             ui.newLine(-25)
         end
 
-        if ac.getPatchVersionCode() >= 2651 then
-            ui.tabItem('Update', function()
-                ui.text('Currrently running version ' .. appVersion)
-
-                if ui.checkbox('Automatically Check for Updates', settings.autoUpdate) then
-                    settings.autoUpdate = not settings.autoUpdate
-                    if settings.autoUpdate then updateCheckVersion() end
-                end
-
-                if settings.autoUpdate then
-                    ui.text('\t')
-                    ui.sameLine()
-                    settings.updateInterval = ui.slider('##UpdateInterval', settings.updateInterval, 1, 60, 'Check for Update every ' .. '%.0f days')
-                end
-
-                local updateButtonText = settings.updateAvailable and 'Install Update' or 'Check for Update'
-                if ui.button(updateButtonText) then updateCheckVersion(settings.updateAvailable) end
-
-                if settings.updateStatus > 0 then
-                    ui.textColored(updateStatusTable[settings.updateStatus], updateStatusColor[settings.updateStatus])
-                    local diff = os.time() - settings.lastCheck
-                    if diff > 600 then settings.updateStatus = 0 end
-                    local units = { 'seconds', 'minutes', 'hours', 'days' }
-                    local values = { 1, 60, 3600, 86400 }
-
-                    local i = #values
-                    while i > 1 and diff < values[i] do
-                        i = i - 1
-                    end
-
-                    local timeAgo = math.floor(diff / values[i])
-                    ui.text('Last checked ' .. timeAgo .. ' ' .. units[i] .. ' ago')
-                end
-            end)
-        end
+        ui.tabItem('Update', function()
+            Updater.drawUI()
+        end)
 
         ui.tabItem('Display', function()
             if ac.getPatchVersionCode() >= 3044 then
