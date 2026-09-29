@@ -1,7 +1,7 @@
 on:
   push:
     tags:
-      - 'v*'  
+      - 'v*'
 
 jobs:
   build:
@@ -9,45 +9,51 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@master
-    - name: Archive Release
-      uses: thedoctor0/zip-release@0.7.1
-      with:
-        type: 'zip'
-        filename: 'mobilephone.zip'
-        path: './mobilephone/'
+      - uses: actions/checkout@master
+      - name: Archive Release
+        uses: thedoctor0/zip-release@0.7.1
+        with:
+          type: 'zip'
+          filename: 'mobilephone.zip'
+          path: './mobilephone/'
 
-    - name: Create Release
-      uses: ncipollo/release-action@v1.12.0
-      with:
-        artifacts: "mobilephone.zip"
-        tag: ${{ github.ref }}
-        name: "Mobilephone ${{ github.ref_name }}"
-        body: |
-          **Supported CSP Versions: CSP 0.2.0 (2651) and newer**
+      - name: Create Release
+        uses: ncipollo/release-action@v1.12.0
+        with:
+          artifacts: 'mobilephone.zip'
+          tag: ${{ github.ref }}
+          name: 'Mobilephone ${{ github.ref_name }}'
+          body: |
+            **Supported CSP Versions: CSP 0.2.0 (2651) and newer**
 
-          ## Added:
+            ## Added:
 
-          ## Changes:
+            ## Changes:
 
-          ## Known Issues:
-          - Only Latin alphabet and Western Arabic numerals are supported by the font. Kanji, Cyrillic etc. will be displayed using a different font via font fallback.
-          - When using the AssettoServer PatreonTwitchChatPlugin, some Twitch features like Announcements are not be displayed correctly and will result in empty lines
+            ## Known Issues:
+            - Only Latin alphabet and Western Arabic numerals are supported by the font. Kanji, Cyrillic etc. will be displayed using a different font via font fallback.
+            - When using the AssettoServer PatreonTwitchChatPlugin, some Twitch features like Announcements are not be displayed correctly and will result in empty lines
 
-          ## Updating & Installation:
+            ## Updating & Installation:
 
-          ### Updating Ingame:
-            ![](https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/updater.png)
-          1. Open the Mobilephone Ingame
-          2. Select the `Update` Tab
-          3. Click the `Check for Update` button
-          4. Click the `Install Update` button
+            > [!IMPORTANT]
+            > **Manual Reinstall Required (< v1.7)**
+            > If you are updating from a version older than v1.7, you must manually reinstall the app.
+            > Using the in-game updater on older versions will cause the app to crash on startup.
+            > Your user settings will not be affected by reinstalling.
 
-          ### Automatic Installation via Content Manager: 
-          1. Download `mobilephone.zip`
-          2. Drag & Drop `mobilephone.zip` into Content Manager and click `Install`
+            ### Updating Ingame:
+              ![](https://raw.githubusercontent.com/C1XTZ/ac-mobilephone/master/.github/img/updater.png)
+            1. Open the Mobilephone Ingame
+            2. Select the `Update` Tab
+            3. Click the `Check for Update` button
+            4. Click the `Install Update` button
 
-          ### Manual Installation: 
-          1. Download `mobilephone.zip`
-          2. Extract and place the `mobilephone` folder inside the `\apps\lua` folder of your Assetto Corsa installation.
-          (By default: `C:\Steam\steamapps\common\assettocorsa\apps\lua`)
+            ### Automatic Installation via Content Manager:
+            1. Download `mobilephone.zip`
+            2. Drag & Drop `mobilephone.zip` into Content Manager and click `Install`
+
+            ### Manual Installation:
+            1. Download `mobilephone.zip`
+            2. Extract and place the `mobilephone` folder inside the `\apps\lua` folder of your Assetto Corsa installation.
+            (By default: `C:\Steam\steamapps\common\assettocorsa\apps\lua`)
