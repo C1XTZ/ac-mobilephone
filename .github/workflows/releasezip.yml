@@ -9,20 +9,19 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v6
       - name: Archive Release
-        uses: thedoctor0/zip-release@0.7.1
-        with:
-          type: 'zip'
-          filename: 'mobilephone.zip'
-          path: './mobilephone/'
+        run: zip -r mobilephone.zip mobilephone/
 
       - name: Create Release
-        uses: ncipollo/release-action@v1.12.0
+        uses: ncipollo/release-action@v1.20.0
         with:
+          immutableCreate: true
           artifacts: 'mobilephone.zip'
           tag: ${{ github.ref }}
           name: 'Mobilephone ${{ github.ref_name }}'
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          makeLatest: ${{ !contains(github.ref_name, '-') }}
           body: |
             **Supported CSP Versions: CSP 0.2.0 (2651) and newer**
 
