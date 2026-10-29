@@ -23,6 +23,8 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           makeLatest: ${{ !contains(github.ref_name, '-') }}
           body: |
+            <p align="center"><img src="https://github.com/C1XTZ/ac-mobilephone/blob/master/.github/img/repopreview.png" width="700"/></p>
+
             **Supported CSP Versions: CSP 0.2.0 (2651) and newer**
 
             ## Added:
